@@ -174,7 +174,7 @@
   async function handleDeleteGuide() {
     if (!contextMenu) return;
 
-    const guide = guides.find(g => g.id === contextMenu.guideId);
+    const guide = guides.find(g => g.id === contextMenu?.guideId);
     if (!guide) return;
 
     const confirmed = confirm(`Move "${guide.title}" to trash?`);
@@ -358,10 +358,24 @@
     >
       💾 Full Backup
     </button>
+    <button 
+      class="action-btn export-btn"
+      onclick={ () => {
+        window.open('https://www.markdownguide.org/basic-syntax/', '_blank')
+        }
+      }
+      type="button"
+      disabled={isExporting}
+      title="Export complete backup (guides + versions + trash)"
+    >
+      📖 Guide for writing
+    </button>
   </div>
 </aside>
 
 {#if showNewFolderModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-overlay" onclick={() => showNewFolderModal = false}>
     <div class="modal" onclick={(e) => e.stopPropagation()}>
       <h3>Create New Folder</h3>
