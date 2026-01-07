@@ -59,13 +59,15 @@ To create a production-ready build:
 
 ```bash
 npm run build
+```
 To preview the production build locally:
 
-Bash
-
+```
 npm run preview
+```
+---
 📂 Project Structure
-Plaintext
+```Plaintext
 
 src/
 ├── assets/          # Static assets (icons, SVGs)
@@ -80,11 +82,12 @@ src/
 │   └── opfs.ts      # Core logic for File System Access (CRUD)
 ├── App.svelte       # Main application layout
 └── main.ts          # Entry point
+```
 💾 Backup & Data Management
 Since Guidy runs entirely in the browser using OPFS:
 
-Clearing Browser Data: Clearing your browser's "Site Data" or "Storage" will delete your guides.
+- Clearing Browser Data: Clearing your browser's "Site Data" or "Storage" will delete your guides.
 
-Backups: Use the "Full Backup" button in the sidebar regularly to download a JSON snapshot of your data.
+- Backups: Use the "Full Backup" button in the sidebar regularly to download a JSON snapshot of your data.
 
-Export: You can export guides as standard Markdown files for use in other editors (Obsidian, VS Code, etc.).
+- Export: You can export guides as standard Markdown files for use in other editors (Obsidian, VS Code, etc.).
