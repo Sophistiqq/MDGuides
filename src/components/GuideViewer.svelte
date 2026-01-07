@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { EditorView, basicSetup } from 'codemirror';
+  import { EditorState } from '@codemirror/state';
+  import { markdown } from '@codemirror/lang-markdown';
   import { marked } from 'marked';
   import { deleteGuide, updateGuide, getVersionHistory, type Guide, type Version } from '../lib/opfs';
   import VersionHistory from './VersionHistory.svelte';
@@ -16,21 +20,54 @@
   let isLoading = $state(false);
   let showVersions = $state(false);
   let versions = $state<Version[]>([]);
+  let editorElement: HTMLElement;
+  let editorView: EditorView | null = null;
 
-  // Reactive HTML rendering
-  const htmlContent = $derived(
+  // Reactive HTML rendering for view mode
+  const viewHtmlContent = $derived(
     guide && !isEditing ? marked.parse(guide.content) : ''
+  );
+
+  // Reactive HTML rendering for edit preview
+  const editPreviewHtml = $derived(
+    isEditing && editContent ? marked.parse(editContent) : '<p class="placeholder">Start editing to see preview...</p>'
   );
 
   function startEdit() {
     if (!guide) return;
     editContent = guide.content;
     isEditing = true;
+    
+    // Initialize CodeMirror after DOM update
+    setTimeout(() => {
+      if (editorElement && !editorView) {
+        editorView = new EditorView({
+          state: EditorState.create({
+            doc: editContent,
+            extensions: [
+              basicSetup,
+              markdown(),
+              EditorView.lineWrapping,
+              EditorView.updateListener.of((update) => {
+                if (update.docChanged) {
+                  editContent = update.state.doc.toString();
+                }
+              })
+            ]
+          }),
+          parent: editorElement
+        });
+      }
+    }, 50);
   }
 
   function cancelEdit() {
     isEditing = false;
     editContent = '';
+    if (editorView) {
+      editorView.destroy();
+      editorView = null;
+    }
   }
 
   async function saveEdit() {
@@ -39,6 +76,10 @@
     isLoading = true;
     try {
       await updateGuide(guide.id, editContent.trim());
+      if (editorView) {
+        editorView.destroy();
+        editorView = null;
+      }
       isEditing = false;
       editContent = '';
       onupdated();
@@ -109,7 +150,18 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (isEditing && e.key === 'Escape') {
+      cancelEdit();
+    } else if (isEditing && (e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      saveEdit();
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <main class="content">
   {#if guide}
@@ -148,17 +200,34 @@
     {/if}
 
     {#if isEditing}
-      <div class="editor">
-        <textarea
-          class="edit-textarea"
-          bind:value={editContent}
-          disabled={isLoading}
-          rows="20"
-        ></textarea>
+      <div class="edit-container">
+        <div class="editor-panel">
+          <div class="panel-header">
+            <h3>Editor</h3>
+            <span class="hint">Markdown</span>
+          </div>
+          <div class="editor-wrapper">
+            <div bind:this={editorElement} class="editor"></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="preview-panel">
+          <div class="panel-header">
+            <h3>Preview</h3>
+            <span class="hint">Live preview</span>
+          </div>
+          <div class="preview-wrapper">
+            <article class="preview-content">
+              {@html editPreviewHtml}
+            </article>
+          </div>
+        </div>
       </div>
     {:else}
       <article class="guide">
-        {@html htmlContent}
+        {@html viewHtmlContent}
       </article>
     {/if}
   {:else}
@@ -235,28 +304,89 @@
     background: #dc2626;
   }
 
-  .editor {
+  .edit-container {
     flex: 1;
-    padding: 1.5rem;
-    overflow-y: auto;
+    display: flex;
+    overflow: hidden;
   }
 
-  .edit-textarea {
-    width: 100%;
+  .editor-panel,
+  .preview-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+  }
+
+  .panel-header h3 {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .hint {
+    font-size: 0.75rem;
+    color: #9ca3af;
+  }
+
+  .editor-wrapper,
+  .preview-wrapper {
+    flex: 1;
+    overflow: auto;
+  }
+
+  .editor {
     height: 100%;
-    min-height: 400px;
-    padding: 1rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    font-size: 0.9375rem;
-    font-family: 'Courier New', monospace;
-    resize: vertical;
+    background: #ffffff;
   }
 
-  .edit-textarea:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  .editor :global(.cm-editor) {
+    height: 100%;
+    background: #ffffff;
+  }
+
+  .editor :global(.cm-content) {
+    background: #ffffff;
+  }
+
+  .editor :global(.cm-gutters) {
+    background: #f9fafb;
+    border-right: 1px solid #e5e7eb;
+  }
+
+  .editor :global(.cm-scroller) {
+    overflow: auto;
+    padding: 1rem;
+  }
+
+  .divider {
+    width: 1px;
+    background: #e5e7eb;
+    flex-shrink: 0;
+  }
+
+  .preview-content {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    width: 100%;
+  }
+
+  .preview-content :global(.placeholder) {
+    color: #9ca3af;
+    font-style: italic;
   }
 
   .guide {
@@ -265,6 +395,7 @@
     margin: 0 auto;
     padding: 2rem 1.5rem;
     width: 100%;
+    overflow-y: auto;
   }
 
   .empty-state {
@@ -280,7 +411,7 @@
     font-size: 1rem;
   }
 
-  /* Markdown styling */
+  /* Markdown styling for view mode */
   .guide :global(h1) {
     font-size: 2rem;
     font-weight: 700;
@@ -356,6 +487,85 @@
   }
 
   .guide :global(a:hover) {
+    color: #2563eb;
+  }
+
+  /* Markdown styling for preview mode */
+  .preview-content :global(h1) {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 1.5rem;
+    color: #111827;
+  }
+
+  .preview-content :global(h2) {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 2rem 0 1rem;
+    color: #1f2937;
+  }
+
+  .preview-content :global(h3) {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.75rem;
+    color: #374151;
+  }
+
+  .preview-content :global(p) {
+    margin: 0 0 1rem;
+    line-height: 1.625;
+    color: #374151;
+  }
+
+  .preview-content :global(ul),
+  .preview-content :global(ol) {
+    margin: 0 0 1rem;
+    padding-left: 1.75rem;
+  }
+
+  .preview-content :global(li) {
+    margin: 0.375rem 0;
+    line-height: 1.625;
+    color: #374151;
+  }
+
+  .preview-content :global(pre) {
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 0 0 1rem;
+  }
+
+  .preview-content :global(code) {
+    background: #f3f4f6;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+    font-family: 'Courier New', monospace;
+  }
+
+  .preview-content :global(pre code) {
+    background: none;
+    padding: 0;
+  }
+
+  .preview-content :global(blockquote) {
+    border-left: 4px solid #e5e7eb;
+    padding-left: 1rem;
+    margin: 0 0 1rem;
+    color: #6b7280;
+    font-style: italic;
+  }
+
+  .preview-content :global(a) {
+    color: #3b82f6;
+    text-decoration: underline;
+  }
+
+  .preview-content :global(a:hover) {
     color: #2563eb;
   }
 </style>

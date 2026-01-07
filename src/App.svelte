@@ -9,8 +9,8 @@
   let guides = $state<Guide[]>([]);
   let selectedGuideId = $state<string | null>(null);
   let showTrash = $state(false);
+  let showNewGuide = $state(false);
 
-  // Reactive derived state
   const selectedGuide = $derived(
     guides.find(g => g.id === selectedGuideId) ?? null
   );
@@ -24,16 +24,27 @@
   function handleSelectGuide(id: string) {
     selectedGuideId = id;
     showTrash = false;
+    showNewGuide = false;
+  }
+
+  function handleNewGuide() {
+    showNewGuide = true;
+    selectedGuideId = null;
+    showTrash = false;
   }
 
   function handleGuideAdded() {
+    showNewGuide = false;
     loadGuides();
+  }
+
+  function handleCancelNewGuide() {
+    showNewGuide = false;
   }
 
   async function handleGuideUpdated() {
     const currentId = selectedGuideId;
     await loadGuides();
-    // Re-trigger selection to update the view
     if (currentId) {
       selectedGuideId = currentId;
     }
@@ -48,10 +59,16 @@
     showTrash = !showTrash;
     if (showTrash) {
       selectedGuideId = null;
+      showNewGuide = false;
     }
   }
 
   function handleTrashChanged() {
+    loadGuides();
+  }
+
+  function handleGuideAction() {
+    selectedGuideId = null;
     loadGuides();
   }
 </script>
@@ -62,14 +79,21 @@
     selectedId={selectedGuideId}
     onselect={handleSelectGuide}
     onshowtrash={toggleTrash}
+    onguideaction={handleGuideAction}
+    onnewguide={handleNewGuide}
     {showTrash}
+    {showNewGuide}
   />
 
   <div class="main">
     {#if showTrash}
       <TrashBin ontrashchanged={handleTrashChanged} />
+    {:else if showNewGuide}
+      <AddGuide 
+        onguideadded={handleGuideAdded}
+        oncancel={handleCancelNewGuide}
+      />
     {:else}
-      <AddGuide onguideadded={handleGuideAdded} />
       <GuideViewer 
         guide={selectedGuide}
         onupdated={handleGuideUpdated}

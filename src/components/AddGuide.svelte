@@ -3,72 +3,59 @@
   import { EditorView, basicSetup } from 'codemirror';
   import { EditorState } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
-  import { oneDark } from '@codemirror/theme-one-dark';
+  import { marked } from 'marked';
   import { getGuidesDir } from '../lib/opfs';
 
   type Props = {
     onguideadded: () => void;
+    oncancel: () => void;
   };
 
-  let { onguideadded }: Props = $props();
+  let { onguideadded, oncancel }: Props = $props();
 
   let title = $state('');
-  let showModal = $state(false);
+  let content = $state('');
   let isLoading = $state(false);
   let editorElement: HTMLElement;
   let editorView: EditorView | null = null;
 
-  // Reactive validation
-  const canSubmit = $derived(title.trim().length > 0 && !isLoading);
+  const canSubmit = $derived(title.trim().length > 0 && content.trim().length > 0 && !isLoading);
+
+  // Reactive preview HTML
+  const previewHtml = $derived(
+    content ? marked.parse(`# ${title || 'Untitled'}\n\n${content}`) : '<p class="placeholder">Start typing to see preview...</p>'
+  );
 
   onMount(() => {
+    // Initialize editor
+    if (editorElement) {
+      editorView = new EditorView({
+        state: EditorState.create({
+          doc: '',
+          extensions: [
+            basicSetup,
+            markdown(),
+            EditorView.lineWrapping,
+            EditorView.updateListener.of((update) => {
+              if (update.docChanged) {
+                content = update.state.doc.toString();
+              }
+            })
+          ]
+        }),
+        parent: editorElement
+      });
+    }
+
     return () => {
-      // Cleanup editor when component unmounts
       if (editorView) {
         editorView.destroy();
       }
     };
   });
 
-  function openModal() {
-    showModal = true;
-    // Initialize editor after modal is shown
-    setTimeout(() => {
-      if (editorElement && !editorView) {
-        editorView = new EditorView({
-          state: EditorState.create({
-            doc: '',
-            extensions: [
-              basicSetup,
-              markdown(),
-              oneDark,
-              EditorView.lineWrapping,
-            ]
-          }),
-          parent: editorElement
-        });
-      }
-    }, 50);
-  }
-
-  function closeModal() {
-    showModal = false;
-    title = '';
-    if (editorView) {
-      editorView.destroy();
-      editorView = null;
-    }
-  }
-
   async function handleSubmit() {
-    if (!canSubmit || !editorView) return;
-
-    const content = editorView.state.doc.toString();
-    
-    if (!content.trim()) {
-      alert('Please enter some content for the guide');
-      return;
-    }
+    if (!canSubmit) return;
 
     isLoading = true;
 
@@ -83,7 +70,6 @@
       await writable.close();
 
       onguideadded();
-      closeModal();
     } catch (error) {
       console.error('Failed to add guide:', error);
       alert('Failed to add guide. Please try again.');
@@ -93,212 +79,191 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && showModal) {
-      closeModal();
+    if (e.key === 'Escape') {
+      oncancel();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      handleSubmit();
     }
   }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="add-guide-container">
-  <button
-    class="add-guide-btn"
-    onclick={openModal}
-    type="button"
-  >
-    ➕ New Guide
-  </button>
-</div>
+<main class="new-guide-container">
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <h2 class="toolbar-title">Create New Guide</h2>
+    </div>
+    <div class="toolbar-right">
+      <button
+        class="btn btn-secondary"
+        onclick={oncancel}
+        disabled={isLoading}
+        type="button"
+      >
+        Cancel
+      </button>
+      <button
+        class="btn btn-primary"
+        onclick={handleSubmit}
+        disabled={!canSubmit}
+        type="button"
+      >
+        {isLoading ? 'Creating...' : '💾 Create Guide'}
+      </button>
+    </div>
+  </div>
 
-{#if showModal}
-  <div class="modal-overlay" onclick={closeModal}>
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
-      <div class="modal-header">
-        <h2>Create New Guide</h2>
-        <button class="close-btn" onclick={closeModal} type="button">✕</button>
+  <div class="title-bar">
+    <input
+      class="title-input"
+      placeholder="Guide Title"
+      bind:value={title}
+      disabled={isLoading}
+      required
+    />
+  </div>
+
+  <div class="editor-preview-container">
+    <div class="editor-panel">
+      <div class="panel-header">
+        <h3>Editor</h3>
+        <span class="hint">Markdown supported</span>
       </div>
-
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="guide-title">Title</label>
-          <input
-            id="guide-title"
-            class="input"
-            placeholder="Enter guide title"
-            bind:value={title}
-            disabled={isLoading}
-            required
-          />
-        </div>
-
-        <div class="form-group">
-          <label>Content (Markdown)</label>
-          <div class="editor-container">
-            <div bind:this={editorElement} class="editor"></div>
-          </div>
-        </div>
+      <div class="editor-wrapper">
+        <div bind:this={editorElement} class="editor"></div>
       </div>
+    </div>
 
-      <div class="modal-footer">
-        <button
-          class="btn btn-secondary"
-          onclick={closeModal}
-          disabled={isLoading}
-          type="button"
-        >
-          Cancel
-        </button>
-        <button
-          class="btn btn-primary"
-          onclick={handleSubmit}
-          disabled={!canSubmit}
-          type="button"
-        >
-          {isLoading ? 'Creating...' : 'Create Guide'}
-        </button>
+    <div class="divider"></div>
+
+    <div class="preview-panel">
+      <div class="panel-header">
+        <h3>Preview</h3>
+        <span class="hint">Live preview</span>
+      </div>
+      <div class="preview-wrapper">
+        <article class="preview-content">
+          {@html previewHtml}
+        </article>
       </div>
     </div>
   </div>
-{/if}
+</main>
 
 <style>
-  .add-guide-container {
+  .new-guide-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #ffffff;
+  }
+
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    gap: 1rem;
+  }
+
+  .toolbar-left {
+    flex: 1;
+  }
+
+  .toolbar-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .toolbar-right {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .title-bar {
     padding: 1rem 1.5rem;
     border-bottom: 1px solid #e5e7eb;
     background: #ffffff;
   }
 
-  .add-guide-btn {
+  .title-input {
     width: 100%;
     padding: 0.75rem 1rem;
-    border: 2px dashed #d1d5db;
-    background: #f9fafb;
+    border: 2px solid #e5e7eb;
     border-radius: 0.5rem;
-    cursor: pointer;
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: #3b82f6;
-    transition: all 0.15s;
-  }
-
-  .add-guide-btn:hover {
-    background: #eff6ff;
-    border-color: #3b82f6;
-  }
-
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 1rem;
-  }
-
-  .modal {
-    background: #ffffff;
-    border-radius: 0.75rem;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    width: 100%;
-    max-width: 900px;
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-  }
-
-  .modal-header h2 {
-    margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
-    color: #111827;
-  }
-
-  .close-btn {
-    width: 2rem;
-    height: 2rem;
-    border: none;
-    background: #f3f4f6;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    font-size: 1.25rem;
-    color: #6b7280;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s;
-  }
-
-  .close-btn:hover {
-    background: #e5e7eb;
-    color: #374151;
-  }
-
-  .modal-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 1.5rem;
-  }
-
-  .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .form-group:last-child {
-    margin-bottom: 0;
-  }
-
-  .form-group label {
-    display: block;
-    font-weight: 500;
-    color: #374151;
-    margin-bottom: 0.5rem;
-    font-size: 0.9375rem;
-  }
-
-  .input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.5rem;
-    font-size: 1rem;
     font-family: inherit;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
 
-  .input:focus {
+  .title-input:focus {
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   }
 
-  .input:disabled {
+  .title-input:disabled {
     background: #f3f4f6;
     cursor: not-allowed;
   }
 
-  .editor-container {
-    border: 1px solid #d1d5db;
-    border-radius: 0.5rem;
+  .title-input::placeholder {
+    color: #9ca3af;
+  }
+
+  .editor-preview-container {
+    flex: 1;
+    display: flex;
     overflow: hidden;
   }
 
-  .editor {
-    height: 400px;
+  .editor-panel,
+  .preview-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+  }
+
+  .panel-header h3 {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .hint {
+    font-size: 0.75rem;
+    color: #9ca3af;
+  }
+
+  .editor-wrapper,
+  .preview-wrapper {
+    flex: 1;
     overflow: auto;
+  }
+
+  .editor {
+    height: 100%;
   }
 
   .editor :global(.cm-editor) {
@@ -307,21 +272,111 @@
 
   .editor :global(.cm-scroller) {
     overflow: auto;
+    padding: 1rem;
   }
 
-  .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    padding: 1.5rem;
-    border-top: 1px solid #e5e7eb;
+  .divider {
+    width: 1px;
+    background: #e5e7eb;
+    flex-shrink: 0;
+  }
+
+  .preview-content {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    width: 100%;
+  }
+
+  .preview-content :global(.placeholder) {
+    color: #9ca3af;
+    font-style: italic;
+  }
+
+  /* Markdown styling */
+  .preview-content :global(h1) {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 1.5rem;
+    color: #111827;
+  }
+
+  .preview-content :global(h2) {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 2rem 0 1rem;
+    color: #1f2937;
+  }
+
+  .preview-content :global(h3) {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.75rem;
+    color: #374151;
+  }
+
+  .preview-content :global(p) {
+    margin: 0 0 1rem;
+    line-height: 1.625;
+    color: #374151;
+  }
+
+  .preview-content :global(ul),
+  .preview-content :global(ol) {
+    margin: 0 0 1rem;
+    padding-left: 1.75rem;
+  }
+
+  .preview-content :global(li) {
+    margin: 0.375rem 0;
+    line-height: 1.625;
+    color: #374151;
+  }
+
+  .preview-content :global(pre) {
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 0 0 1rem;
+  }
+
+  .preview-content :global(code) {
+    background: #f3f4f6;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+    font-family: 'Courier New', monospace;
+  }
+
+  .preview-content :global(pre code) {
+    background: none;
+    padding: 0;
+  }
+
+  .preview-content :global(blockquote) {
+    border-left: 4px solid #e5e7eb;
+    padding-left: 1rem;
+    margin: 0 0 1rem;
+    color: #6b7280;
+    font-style: italic;
+  }
+
+  .preview-content :global(a) {
+    color: #3b82f6;
+    text-decoration: underline;
+  }
+
+  .preview-content :global(a:hover) {
+    color: #2563eb;
   }
 
   .btn {
-    padding: 0.75rem 1.5rem;
+    padding: 0.625rem 1.25rem;
     border: none;
-    border-radius: 0.5rem;
-    font-size: 0.9375rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s;
