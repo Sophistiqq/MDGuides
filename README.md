@@ -1,47 +1,90 @@
-# Svelte + TS + Vite
+# Guidy 📖
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+**Guidy** is a local-first, privacy-focused Markdown guide manager built with **Svelte 5** and **Vite**. It leverages the **Origin Private File System (OPFS)** to store your documents directly in the browser with native file system performance, functioning as a fully offline-capable Progressive Web App (PWA).
 
-## Recommended IDE Setup
+## ✨ Key Features
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+* **Local-First Storage**: All data is stored locally using OPFS. No account or backend server required.
+* **Markdown Editor**: robust editing experience using **CodeMirror** with live HTML preview via **Marked**.
+* **Organization**:
+    * Create and manage custom **Folders**.
+    * Move guides between folders via context menus.
+* **Version Control**:
+    * Automatic version history for every guide.
+    * Easily restore previous versions of your documents.
+* **Trash Bin**: Soft-delete system allowing you to restore accidentally deleted guides.
+* **Data Portability**:
+    * **Export All**: Download all guides as individual `.md` files.
+    * **Full Backup**: Export a complete JSON backup including folder structures and version history.
+* **PWA Support**: Installable on desktop and mobile devices for an app-like experience.
 
-## Need an official Svelte framework?
+## 🛠️ Tech Stack
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+* **Framework**: [Svelte 5](https://svelte.dev/) (using Runes syntax)
+* **Build Tool**: [Vite](https://vitejs.dev/)
+* **Language**: TypeScript
+* **Storage**: [OPFS (File System API)](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)
+* **Editor**: [CodeMirror 6](https://codemirror.net/)
+* **Styling**: Native CSS (Scoped Svelte styles)
 
-## Technical considerations
+## 🚀 Getting Started
 
-**Why use this over SvelteKit?**
+### Prerequisites
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+* Node.js (Latest LTS recommended)
+* npm (comes with Node.js)
 
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+### Installation
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
+1.  **Clone the repository:**
+    ```bash
+    git clone [https://github.com/your-username/guidy.git](https://github.com/your-username/guidy.git)
+    cd guidy
+    ```
 
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
 
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
+3.  **Start the development server:**
+    ```bash
+    npm run dev
+    ```
+    Open your browser to the URL shown in the terminal (usually `http://localhost:5173`).
 
-**Why include `.vscode/extensions.json`?**
+### Building for Production
 
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
+To create a production-ready build:
 
-**Why enable `allowJs` in the TS template?**
+```bash
+npm run build
+To preview the production build locally:
 
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
+Bash
 
-**Why is HMR not preserving my local component state?**
+npm run preview
+📂 Project Structure
+Plaintext
 
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
+src/
+├── assets/          # Static assets (icons, SVGs)
+├── components/      # Svelte UI Components
+│   ├── AddGuide.svelte        # Creation interface
+│   ├── ContextMenu.svelte     # Right-click menus
+│   ├── GuideViewer.svelte     # View/Edit/History logic
+│   ├── Sidebar.svelte         # Navigation & Folder management
+│   ├── TrashBin.svelte        # Deleted items management
+│   └── VersionHistory.svelte  # Version rollback UI
+├── lib/
+│   └── opfs.ts      # Core logic for File System Access (CRUD)
+├── App.svelte       # Main application layout
+└── main.ts          # Entry point
+💾 Backup & Data Management
+Since Guidy runs entirely in the browser using OPFS:
 
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
+Clearing Browser Data: Clearing your browser's "Site Data" or "Storage" will delete your guides.
 
-```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
-```
+Backups: Use the "Full Backup" button in the sidebar regularly to download a JSON snapshot of your data.
+
+Export: You can export guides as standard Markdown files for use in other editors (Obsidian, VS Code, etc.).
