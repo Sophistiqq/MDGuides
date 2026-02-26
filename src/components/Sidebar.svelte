@@ -265,14 +265,15 @@
         {#each groupedGuides().uncategorized as guide (guide.id)}
           <li class="group">
             <div
-              class="flex justify-between items-center pr-1 min-w-0 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active font-bold' : ''}"
+              class="flex justify-between items-center pr-1 min-w-0 w-full {guide.id === selectedId && !showTrash && !showNewGuide ? 'active font-bold' : ''}"
               onclick={() => onselect(guide.id)}
               oncontextmenu={(e) => handleContextMenu(e, guide.id)}
               role="button"
               tabindex="0"
               onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
+              title={guide.title}
             >
-              <span class="truncate flex-1 py-2 text-sm">{guide.title}</span>
+              <span class="truncate flex-1 py-2 text-sm min-w-0">{guide.title}</span>
               <button
                 class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                 aria-label="Options"
@@ -292,21 +293,22 @@
           <li>
             <details open={expandedFolders.has(folder.name)}>
               <summary
-                class="group flex justify-between items-center py-3 px-4 hover:bg-base-300 transition-colors"
+                class="group flex justify-between items-center py-3 px-4 hover:bg-base-300 transition-colors min-w-0"
                 onclick={(e) => {
                   e.preventDefault();
                   toggleFolder(folder.name);
                 }}
                 oncontextmenu={(e) => handleFolderContextMenu(e, folder.name)}
+                title={folder.name}
               >
                 <div class="flex items-center gap-3 min-w-0 flex-1">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                   </svg>
-                  <span class="font-bold text-sm truncate">{folder.name}</span>
+                  <span class="font-bold text-sm truncate min-w-0">{folder.name}</span>
                 </div>
               </summary>
-              <ul class="before:hidden ml-2 border-l border-base-300">
+              <ul class="before:hidden ml-2 border-l border-base-300 min-w-0">
                 {#if groupedGuides().byFolder[folder.name]?.length > 0}
                   {#each groupedGuides().byFolder[folder.name] as guide (guide.id)}
                     <li class="group">
@@ -317,8 +319,9 @@
                         role="button"
                         tabindex="0"
                         onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
+                        title={guide.title}
                       >
-                        <span class="truncate flex-1 text-sm">{guide.title}</span>
+                        <span class="truncate flex-1 text-sm min-w-0">{guide.title}</span>
                         <button
                           class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                           aria-label="Options"
