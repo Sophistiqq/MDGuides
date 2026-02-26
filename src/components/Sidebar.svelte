@@ -30,6 +30,12 @@
   let guideToDelete = $state<Guide | null>(null);
   let fileInput = $state<HTMLInputElement>();
 
+  const MAX_TITLE_LENGTH = 20;
+
+  function truncate(str: string, n: number) {
+    return str.length > n ? str.slice(0, n - 1) + '…' : str;
+  }
+
   // Group guides by folder
   const groupedGuides = $derived(() => {
     const uncategorized: Guide[] = [];
@@ -241,7 +247,7 @@
 
 <svelte:window onclick={closeContextMenu} />
 
-<aside class="w-80 flex flex-col h-full bg-base-200 border-r border-base-300 shadow-sm z-10">
+<aside class="w-80 flex flex-col h-full bg-base-200 border-r border-base-300 shadow-sm z-10 overflow-x-hidden">
   <div class="p-4 flex items-center justify-between border-b border-base-300 bg-base-100">
     <h1 class="text-xl font-bold tracking-tight text-primary flex items-center gap-2">
       <img src="/icon.svg" alt="Guidy Logo" class="h-8 w-8" />
@@ -260,22 +266,25 @@
         <p class="text-sm">No guides or folders yet. Create one to get started!</p>
       </div>
     {:else}
-      <ul class="menu menu-sm w-full p-0">
+      <ul class="menu menu-sm w-full p-0 flex flex-col gap-1">
         <!-- Uncategorized guides -->
         {#each groupedGuides().uncategorized as guide (guide.id)}
-          <li class="group">
+          <li class="group w-full min-w-0">
             <div
-              class="flex justify-between items-center pr-1 min-w-0 w-full {guide.id === selectedId && !showTrash && !showNewGuide ? 'active font-bold' : ''}"
+              class="grid grid-cols-[1fr_auto] items-center gap-2 p-0 min-w-0 w-full rounded-lg hover:bg-base-300 transition-colors {guide.id === selectedId && !showTrash && !showNewGuide ? 'bg-primary/10 text-primary font-bold' : ''}"
               onclick={() => onselect(guide.id)}
               oncontextmenu={(e) => handleContextMenu(e, guide.id)}
               role="button"
               tabindex="0"
               onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
-              title={guide.title}
             >
-              <span class="truncate flex-1 py-2 text-sm min-w-0">{guide.title}</span>
+              <div class="min-w-0 flex-1 py-3 px-4 {guide.title.length > MAX_TITLE_LENGTH ? 'tooltip tooltip-right' : ''}" data-tip={guide.title}>
+                <span class="block truncate text-sm font-medium leading-tight">
+                  {truncate(guide.title, MAX_TITLE_LENGTH)}
+                </span>
+              </div>
               <button
-                class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mr-2"
                 aria-label="Options"
                 onclick={(e) => {
                   e.stopPropagation();
@@ -290,40 +299,44 @@
 
         <!-- Folders -->
         {#each folders as folder (folder.path)}
-          <li>
-            <details open={expandedFolders.has(folder.name)}>
+          <li class="w-full min-w-0">
+            <details open={expandedFolders.has(folder.name)} class="w-full">
               <summary
-                class="group flex justify-between items-center py-3 px-4 hover:bg-base-300 transition-colors min-w-0"
+                class="group grid grid-cols-[1fr_auto] items-center p-0 min-w-0 w-full rounded-lg hover:bg-base-300 transition-colors list-none"
                 onclick={(e) => {
                   e.preventDefault();
                   toggleFolder(folder.name);
                 }}
                 oncontextmenu={(e) => handleFolderContextMenu(e, folder.name)}
-                title={folder.name}
               >
-                <div class="flex items-center gap-3 min-w-0 flex-1">
+                <div class="flex items-center gap-3 min-w-0 flex-1 py-3 px-4 {folder.name.length > MAX_TITLE_LENGTH ? 'tooltip tooltip-right' : ''}" data-tip={folder.name}>
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                   </svg>
-                  <span class="font-bold text-sm truncate min-w-0">{folder.name}</span>
+                  <span class="font-bold text-sm truncate leading-tight">
+                    {truncate(folder.name, MAX_TITLE_LENGTH)}
+                  </span>
                 </div>
               </summary>
-              <ul class="before:hidden ml-2 border-l border-base-300 min-w-0">
+              <ul class="before:hidden ml-4 border-l border-base-300 mt-1 flex flex-col gap-1 min-w-0">
                 {#if groupedGuides().byFolder[folder.name]?.length > 0}
                   {#each groupedGuides().byFolder[folder.name] as guide (guide.id)}
-                    <li class="group">
+                    <li class="group w-full min-w-0">
                       <div
-                        class="flex justify-between items-center py-2 px-4 min-w-0 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active font-bold' : ''}"
+                        class="grid grid-cols-[1fr_auto] items-center gap-2 p-0 min-w-0 w-full rounded-lg hover:bg-base-300 transition-colors {guide.id === selectedId && !showTrash && !showNewGuide ? 'bg-primary/10 text-primary font-bold' : ''}"
                         onclick={() => onselect(guide.id)}
                         oncontextmenu={(e) => handleContextMenu(e, guide.id)}
                         role="button"
                         tabindex="0"
                         onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
-                        title={guide.title}
                       >
-                        <span class="truncate flex-1 text-sm min-w-0">{guide.title}</span>
+                        <div class="min-w-0 flex-1 py-2 px-4 {guide.title.length > MAX_TITLE_LENGTH ? 'tooltip tooltip-right' : ''}" data-tip={guide.title}>
+                          <span class="block truncate text-sm font-medium leading-tight">
+                            {truncate(guide.title, MAX_TITLE_LENGTH)}
+                          </span>
+                        </div>
                         <button
-                          class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mr-2"
                           aria-label="Options"
                           onclick={(e) => {
                             e.stopPropagation();
