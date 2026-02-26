@@ -241,7 +241,7 @@
 
 <svelte:window onclick={closeContextMenu} />
 
-<aside class="w-72 flex flex-col h-full bg-base-200 border-r border-base-300 shadow-sm z-10">
+<aside class="w-80 flex flex-col h-full bg-base-200 border-r border-base-300 shadow-sm z-10">
   <div class="p-4 flex items-center justify-between border-b border-base-300 bg-base-100">
     <h1 class="text-xl font-bold tracking-tight text-primary flex items-center gap-2">
       <img src="/icon.svg" alt="Guidy Logo" class="h-8 w-8" />
@@ -265,16 +265,16 @@
         {#each groupedGuides().uncategorized as guide (guide.id)}
           <li class="group">
             <div
-              class="flex justify-between items-center pr-1 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active' : ''}"
+              class="flex justify-between items-center pr-1 min-w-0 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active font-bold' : ''}"
               onclick={() => onselect(guide.id)}
               oncontextmenu={(e) => handleContextMenu(e, guide.id)}
               role="button"
               tabindex="0"
               onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
             >
-              <span class="truncate flex-1 py-1">{guide.title}</span>
+              <span class="truncate flex-1 py-2 text-sm">{guide.title}</span>
               <button
-                class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                 aria-label="Options"
                 onclick={(e) => {
                   e.stopPropagation();
@@ -311,7 +311,7 @@
                   {#each groupedGuides().byFolder[folder.name] as guide (guide.id)}
                     <li class="group">
                       <div
-                        class="flex justify-between items-center py-2 px-4 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active font-bold' : ''}"
+                        class="flex justify-between items-center py-2 px-4 min-w-0 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active font-bold' : ''}"
                         onclick={() => onselect(guide.id)}
                         oncontextmenu={(e) => handleContextMenu(e, guide.id)}
                         role="button"
@@ -320,7 +320,7 @@
                       >
                         <span class="truncate flex-1 text-sm">{guide.title}</span>
                         <button
-                          class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                           aria-label="Options"
                           onclick={(e) => {
                             e.stopPropagation();
