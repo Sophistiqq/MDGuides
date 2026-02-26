@@ -360,7 +360,6 @@ export async function exportAllGuides() {
   const guides = await listGuides();
   
   if (guides.length === 0) {
-    alert('No guides to export');
     return;
   }
 

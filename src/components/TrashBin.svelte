@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { marked } from 'marked';
+  import { renderMarkdown, setupMarkdownListeners } from '../lib/markdown';
   import { listTrashedGuides, restoreGuide, permanentlyDeleteGuide, type TrashedGuide } from '../lib/opfs';
+  import { notifications } from '../lib/notifications';
+  import Dialog from './Dialog.svelte';
 
   type Props = {
     ontrashchanged?: () => void;
@@ -12,12 +14,17 @@
   let trashedGuides = $state<TrashedGuide[]>([]);
   let selectedTrash = $state<TrashedGuide | null>(null);
   let isLoading = $state(false);
+  let showEmptyConfirm = $state(false);
+  let showDeleteConfirm = $state(false);
 
   const previewContent = $derived(
-    selectedTrash ? marked.parse(selectedTrash.content) : ''
+    selectedTrash ? renderMarkdown(selectedTrash.content) : ''
   );
 
-  onMount(loadTrash);
+  onMount(() => {
+    loadTrash();
+    return setupMarkdownListeners();
+  });
 
   async function loadTrash() {
     trashedGuides = await listTrashedGuides();
@@ -28,44 +35,41 @@
   }
 
   async function handleRestore(guide: TrashedGuide) {
-    const confirmed = confirm(`Restore "${guide.title}"?`);
-    if (!confirmed) return;
-
     isLoading = true;
     try {
       await restoreGuide(guide.id);
       await loadTrash();
       selectedTrash = null;
       ontrashchanged();
+      notifications.success(`Restored "${guide.title}"`);
     } catch (error) {
       console.error('Failed to restore guide:', error);
-      alert('Failed to restore guide. Please try again.');
+      notifications.error('Failed to restore guide');
     } finally {
       isLoading = false;
     }
   }
 
-  async function handlePermanentDelete(guide: TrashedGuide) {
-    const confirmed = confirm(`Permanently delete "${guide.title}"? This cannot be undone!`);
-    if (!confirmed) return;
+  async function handlePermanentDelete() {
+    if (!selectedTrash) return;
+    const guide = selectedTrash;
 
     isLoading = true;
     try {
       await permanentlyDeleteGuide(guide.id);
       await loadTrash();
       selectedTrash = null;
+      notifications.success(`Permanently deleted "${guide.title}"`);
     } catch (error) {
       console.error('Failed to delete guide:', error);
-      alert('Failed to delete guide. Please try again.');
+      notifications.error('Failed to delete guide');
     } finally {
       isLoading = false;
+      showDeleteConfirm = false;
     }
   }
 
   async function handleEmptyTrash() {
-    const confirmed = confirm(`Permanently delete all ${trashedGuides.length} items in trash? This cannot be undone!`);
-    if (!confirmed) return;
-
     isLoading = true;
     try {
       for (const guide of trashedGuides) {
@@ -73,313 +77,171 @@
       }
       await loadTrash();
       selectedTrash = null;
+      notifications.success('Trash emptied');
     } catch (error) {
       console.error('Failed to empty trash:', error);
-      alert('Failed to empty trash. Please try again.');
+      notifications.error('Failed to empty trash');
     } finally {
       isLoading = false;
+      showEmptyConfirm = false;
     }
   }
 </script>
 
-<main class="trash-container">
-  <div class="trash-header">
-    <h2>🗑️ Trash Bin</h2>
-    {#if trashedGuides.length > 0}
-      <button
-        class="btn btn-danger-outline"
-        onclick={handleEmptyTrash}
-        disabled={isLoading}
-      >
-        Empty Trash
-      </button>
-    {/if}
-  </div>
+<div class="flex-1 flex flex-col bg-base-100 overflow-hidden">
+  <header class="navbar bg-error/10 border-b border-error/20 px-4 min-h-[4rem]">
+    <div class="flex-1">
+      <h2 class="text-lg font-bold text-error flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+        Trash Bin
+      </h2>
+    </div>
+    <div class="flex-none">
+      {#if trashedGuides.length > 0}
+        <button
+          class="btn btn-error btn-sm"
+          onclick={() => showEmptyConfirm = true}
+          disabled={isLoading}
+        >
+          Empty Trash
+        </button>
+      {/if}
+    </div>
+  </header>
 
-  <div class="trash-content">
-    <div class="trash-list">
+  <div class="flex-1 flex overflow-hidden">
+    <div class="w-80 flex flex-col border-r border-base-300 bg-base-200 overflow-hidden">
       {#if trashedGuides.length === 0}
-        <p class="empty">Trash is empty</p>
+        <div class="flex-1 flex items-center justify-center p-8 text-center text-base-content/30 italic">
+          Trash is empty
+        </div>
       {:else}
-        <ul class="list">
-          {#each trashedGuides as guide (guide.id)}
-            <li>
-              <button
-                class="trash-item"
-                class:selected={selectedTrash?.id === guide.id}
-                onclick={() => selectTrash(guide)}
-                disabled={isLoading}
-              >
-                <div class="trash-item-title">{guide.title}</div>
-                <div class="trash-item-date">
-                  Deleted: {new Date(guide.deletedAt).toLocaleString()}
-                </div>
-              </button>
-              
-              {#if selectedTrash?.id === guide.id}
-                <div class="trash-actions">
-                  <button
-                    class="btn btn-primary"
-                    onclick={() => handleRestore(guide)}
-                    disabled={isLoading}
-                  >
-                    ↺ Restore
-                  </button>
-                  <button
-                    class="btn btn-danger"
-                    onclick={() => handlePermanentDelete(guide)}
-                    disabled={isLoading}
-                  >
-                    🗑️ Delete Forever
-                  </button>
-                </div>
-              {/if}
-            </li>
-          {/each}
-        </ul>
+        <div class="flex-1 overflow-auto p-2">
+          <ul class="menu menu-sm p-0 gap-1">
+            {#each trashedGuides as guide (guide.id)}
+              <li>
+                <button
+                  class="flex flex-col items-start gap-1 p-3 {selectedTrash?.id === guide.id ? 'active' : ''}"
+                  onclick={() => selectTrash(guide)}
+                  disabled={isLoading}
+                >
+                  <span class="font-bold text-sm w-full truncate">{guide.title}</span>
+                  <span class="text-[10px] opacity-60">
+                    Deleted: {new Date(guide.deletedAt).toLocaleString()}
+                  </span>
+                </button>
+                
+                {#if selectedTrash?.id === guide.id}
+                  <div class="flex gap-1 p-1 mt-1 w-full">
+                    <button
+                      class="btn btn-primary btn-xs flex-1"
+                      onclick={() => handleRestore(guide)}
+                      disabled={isLoading}
+                    >
+                      Restore
+                    </button>
+                    <button
+                      class="btn btn-error btn-xs flex-1"
+                      onclick={() => showDeleteConfirm = true}
+                      disabled={isLoading}
+                    >
+                      Delete Forever
+                    </button>
+                  </div>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </div>
       {/if}
     </div>
 
-    {#if selectedTrash}
-      <div class="trash-preview">
-        <div class="preview-header">
-          <h3>Preview</h3>
-        </div>
-        <div class="preview-content">
+    <div class="flex-1 overflow-auto bg-base-100 prose-container">
+      {#if selectedTrash}
+        <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300 sticky top-0 z-10">Preview</div>
+        <article class="markdown-body p-8 sm:p-12 max-w-4xl mx-auto">
           {@html previewContent}
+        </article>
+      {:else}
+        <div class="h-full flex items-center justify-center text-base-content/20 italic">
+          Select an item to preview
         </div>
-      </div>
-    {/if}
+      {/if}
+    </div>
   </div>
-</main>
+</div>
+
+<Dialog
+  bind:open={showEmptyConfirm}
+  title="Empty Trash"
+  confirmText="Empty All"
+  onConfirm={handleEmptyTrash}
+>
+  <p>Are you sure you want to <strong>permanently delete all {trashedGuides.length} items</strong>? This action cannot be undone.</p>
+</Dialog>
+
+<Dialog
+  bind:open={showDeleteConfirm}
+  title="Permanent Delete"
+  confirmText="Delete Forever"
+  onConfirm={handlePermanentDelete}
+>
+  <p>Are you sure you want to permanently delete <strong>{selectedTrash?.title}</strong>? This action cannot be undone.</p>
+</Dialog>
 
 <style>
-  .trash-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: #ffffff;
+  @reference "../app.css";
+
+  .markdown-body {
+    line-height: 1.6;
+    color: var(--color-base-content);
   }
 
-  .trash-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #fef2f2;
+  .markdown-body :global(h1) {
+    @apply text-4xl font-extrabold mb-6 pb-2 border-b border-base-300 mt-8 first:mt-0;
   }
 
-  .trash-header h2 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #991b1b;
+  .markdown-body :global(h2) {
+    @apply text-2xl font-bold mb-4 mt-8 pb-1 border-b border-base-200;
   }
 
-  .trash-content {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
+  .markdown-body :global(h3) {
+    @apply text-xl font-bold mb-3 mt-6;
   }
 
-  .trash-list {
-    width: 350px;
-    border-right: 1px solid #e5e7eb;
-    background: #f9fafb;
-    overflow-y: auto;
+  .markdown-body :global(p) {
+    @apply mb-4 leading-relaxed;
   }
 
-  .empty {
-    padding: 2rem 1rem;
-    text-align: center;
-    color: #6b7280;
+  .markdown-body :global(ul) {
+    @apply list-disc pl-6 mb-4;
   }
 
-  .list {
-    list-style: none;
-    padding: 0.5rem;
-    margin: 0;
+  .markdown-body :global(ol) {
+    @apply list-decimal pl-6 mb-4;
   }
 
-  .list li {
-    margin-bottom: 0.5rem;
+  .markdown-body :global(li) {
+    @apply mb-1;
   }
 
-  .trash-item {
-    width: 100%;
-    text-align: left;
-    padding: 0.75rem;
-    border: 1px solid #e5e7eb;
-    background: #ffffff;
-    cursor: pointer;
-    border-radius: 0.375rem;
-    transition: all 0.15s;
+  .markdown-body :global(blockquote) {
+    @apply border-l-4 border-primary/30 pl-4 py-1 italic mb-4 bg-base-200/50 rounded-r;
   }
 
-  .trash-item:hover:not(:disabled) {
-    background: #f3f4f6;
-    border-color: #d1d5db;
+  .markdown-body :global(pre) {
+    @apply bg-neutral text-neutral-content p-4 rounded-lg overflow-x-auto mb-4 font-mono text-sm;
   }
 
-  .trash-item.selected {
-    background: #fef2f2;
-    border-color: #fca5a5;
+  .markdown-body :global(code:not(pre code)) {
+    @apply bg-base-200 text-primary px-1.5 py-0.5 rounded font-mono text-[0.9em];
   }
 
-  .trash-item:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  .markdown-body :global(a) {
+    @apply text-primary hover:underline font-medium;
   }
 
-  .trash-item-title {
-    font-weight: 500;
-    color: #111827;
-    margin-bottom: 0.25rem;
-  }
-
-  .trash-item-date {
-    font-size: 0.75rem;
-    color: #6b7280;
-  }
-
-  .trash-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-  }
-
-  .trash-preview {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .preview-header {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #f9fafb;
-  }
-
-  .preview-header h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-  }
-
-  .preview-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 2rem 1.5rem;
-  }
-
-  .btn {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-primary {
-    background: #3b82f6;
-    color: white;
-    flex: 1;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: #2563eb;
-  }
-
-  .btn-danger {
-    background: #ef4444;
-    color: white;
-    flex: 1;
-  }
-
-  .btn-danger:hover:not(:disabled) {
-    background: #dc2626;
-  }
-
-  .btn-danger-outline {
-    background: transparent;
-    color: #ef4444;
-    border: 1px solid #ef4444;
-  }
-
-  .btn-danger-outline:hover:not(:disabled) {
-    background: #ef4444;
-    color: white;
-  }
-
-  /* Markdown styling */
-  .preview-content :global(h1) {
-    font-size: 2rem;
-    font-weight: 700;
-    margin: 0 0 1.5rem;
-    color: #111827;
-  }
-
-  .preview-content :global(h2) {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 2rem 0 1rem;
-    color: #1f2937;
-  }
-
-  .preview-content :global(h3) {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin: 1.5rem 0 0.75rem;
-    color: #374151;
-  }
-
-  .preview-content :global(p) {
-    margin: 0 0 1rem;
-    line-height: 1.625;
-    color: #374151;
-  }
-
-  .preview-content :global(ul),
-  .preview-content :global(ol) {
-    margin: 0 0 1rem;
-    padding-left: 1.75rem;
-  }
-
-  .preview-content :global(li) {
-    margin: 0.375rem 0;
-    line-height: 1.625;
-    color: #374151;
-  }
-
-  .preview-content :global(pre) {
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    overflow-x: auto;
-    margin: 0 0 1rem;
-  }
-
-  .preview-content :global(code) {
-    background: #f3f4f6;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-size: 0.875em;
-    font-family: 'Courier New', monospace;
-  }
-
-  .preview-content :global(pre code) {
-    background: none;
-    padding: 0;
+  .prose-container {
+    scrollbar-gutter: stable;
   }
 </style>

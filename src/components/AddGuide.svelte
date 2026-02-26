@@ -3,8 +3,9 @@
   import { EditorView, basicSetup } from 'codemirror';
   import { EditorState } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
-  import { marked } from 'marked';
+  import { renderMarkdown, setupMarkdownListeners } from '../lib/markdown';
   import { getGuidesDir } from '../lib/opfs';
+  import { notifications } from '../lib/notifications';
 
   type Props = {
     onguideadded: () => void;
@@ -16,17 +17,18 @@
   let title = $state('');
   let content = $state('');
   let isLoading = $state(false);
-  let editorElement: HTMLElement;
-  let editorView: EditorView | null = null;
+  let editorElement = $state<HTMLElement>();
+  let editorView = $state<EditorView | null>(null);
 
   const canSubmit = $derived(title.trim().length > 0 && content.trim().length > 0 && !isLoading);
 
   // Reactive preview HTML
   const previewHtml = $derived(
-    content ? marked.parse(`# ${title || 'Untitled'}\n\n${content}`) : '<p class="placeholder">Start typing to see preview...</p>'
+    content ? renderMarkdown(`# ${title || 'Untitled'}\n\n${content}`) : '<p class="text-base-content/40 italic">Start typing to see preview...</p>'
   );
 
   onMount(() => {
+    const cleanup = setupMarkdownListeners();
     // Initialize editor
     if (editorElement) {
       editorView = new EditorView({
@@ -48,6 +50,7 @@
     }
 
     return () => {
+      cleanup();
       if (editorView) {
         editorView.destroy();
       }
@@ -69,10 +72,11 @@
       await writable.write(mdContent);
       await writable.close();
 
+      notifications.success('Guide created successfully');
       onguideadded();
     } catch (error) {
       console.error('Failed to add guide:', error);
-      alert('Failed to add guide. Please try again.');
+      notifications.error('Failed to create guide');
     } finally {
       isLoading = false;
     }
@@ -90,318 +94,111 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main class="new-guide-container">
-  <div class="toolbar">
-    <div class="toolbar-left">
-      <h2 class="toolbar-title">Create New Guide</h2>
+<div class="flex-1 flex flex-col bg-base-100 overflow-hidden">
+  <header class="navbar bg-base-100 border-b border-base-300 px-4 min-h-[4rem]">
+    <div class="flex-1">
+      <h2 class="text-lg font-bold">Create New Guide</h2>
     </div>
-    <div class="toolbar-right">
-      <button
-        class="btn btn-secondary"
-        onclick={oncancel}
-        disabled={isLoading}
-        type="button"
-      >
-        Cancel
-      </button>
-      <button
-        class="btn btn-primary"
-        onclick={handleSubmit}
-        disabled={!canSubmit}
-        type="button"
-      >
-        {isLoading ? 'Creating...' : '💾 Create Guide'}
+    <div class="flex-none gap-2">
+      <button class="btn btn-ghost btn-sm" onclick={oncancel} disabled={isLoading}>Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick={handleSubmit} disabled={!canSubmit}>
+        {#if isLoading}<span class="loading loading-spinner loading-xs"></span>{/if}
+        Create Guide
       </button>
     </div>
-  </div>
+  </header>
 
-  <div class="title-bar">
+  <div class="p-4 sm:px-8 border-b border-base-300 bg-base-200/50">
     <input
-      class="title-input"
-      placeholder="Guide Title"
+      type="text"
+      placeholder="Enter guide title..."
+      class="input input-ghost w-full text-2xl sm:text-3xl font-bold px-0 focus:bg-transparent focus:outline-none placeholder:opacity-30"
       bind:value={title}
       disabled={isLoading}
       required
     />
   </div>
 
-  <div class="editor-preview-container">
-    <div class="editor-panel">
-      <div class="panel-header">
-        <h3>Editor</h3>
-        <span class="hint">Markdown supported</span>
-      </div>
-      <div class="editor-wrapper">
-        <div bind:this={editorElement} class="editor"></div>
-      </div>
+  <div class="flex-1 flex overflow-hidden">
+    <div class="flex-1 flex flex-col border-r border-base-300 overflow-hidden bg-base-100">
+      <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Editor</div>
+      <div class="flex-1 overflow-auto" bind:this={editorElement}></div>
     </div>
-
-    <div class="divider"></div>
-
-    <div class="preview-panel">
-      <div class="panel-header">
-        <h3>Preview</h3>
-        <span class="hint">Live preview</span>
-      </div>
-      <div class="preview-wrapper">
-        <article class="preview-content">
+    <div class="flex-1 hidden md:flex flex-col overflow-hidden bg-base-200/30">
+      <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Preview</div>
+      <div class="flex-1 overflow-auto p-8 prose-container">
+        <article class="markdown-body">
           {@html previewHtml}
         </article>
       </div>
     </div>
   </div>
-</main>
+</div>
 
 <style>
-  .new-guide-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: #ffffff;
-  }
+  @reference "../app.css";
 
-  .toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #f9fafb;
-    gap: 1rem;
-  }
-
-  .toolbar-left {
-    flex: 1;
-  }
-
-  .toolbar-title {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #111827;
-  }
-
-  .toolbar-right {
-    display: flex;
-    gap: 0.75rem;
-  }
-
-  .title-bar {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #ffffff;
-  }
-
-  .title-input {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 0.5rem;
-    font-size: 1.5rem;
-    font-weight: 600;
-    font-family: inherit;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-
-  .title-input:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-
-  .title-input:disabled {
-    background: #f3f4f6;
-    cursor: not-allowed;
-  }
-
-  .title-input::placeholder {
-    color: #9ca3af;
-  }
-
-  .editor-preview-container {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-  }
-
-  .editor-panel,
-  .preview-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #f9fafb;
-  }
-
-  .panel-header h3 {
-    margin: 0;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #374151;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .hint {
-    font-size: 0.75rem;
-    color: #9ca3af;
-  }
-
-  .editor-wrapper,
-  .preview-wrapper {
-    flex: 1;
-    overflow: auto;
-  }
-
-  .editor {
+  :global(.cm-editor) {
     height: 100%;
+    outline: none !important;
+  }
+  
+  :global(.cm-scroller) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.6;
   }
 
-  .editor :global(.cm-editor) {
-    height: 100%;
+  .markdown-body {
+    line-height: 1.6;
+    color: var(--color-base-content);
   }
 
-  .editor :global(.cm-scroller) {
-    overflow: auto;
-    padding: 1rem;
+  .markdown-body :global(h1) {
+    @apply text-4xl font-extrabold mb-6 pb-2 border-b border-base-300 mt-8 first:mt-0;
   }
 
-  .divider {
-    width: 1px;
-    background: #e5e7eb;
-    flex-shrink: 0;
+  .markdown-body :global(h2) {
+    @apply text-2xl font-bold mb-4 mt-8 pb-1 border-b border-base-200;
   }
 
-  .preview-content {
-    max-width: 48rem;
-    margin: 0 auto;
-    padding: 2rem 1.5rem;
-    width: 100%;
+  .markdown-body :global(h3) {
+    @apply text-xl font-bold mb-3 mt-6;
   }
 
-  .preview-content :global(.placeholder) {
-    color: #9ca3af;
-    font-style: italic;
+  .markdown-body :global(p) {
+    @apply mb-4 leading-relaxed;
   }
 
-  /* Markdown styling */
-  .preview-content :global(h1) {
-    font-size: 2rem;
-    font-weight: 700;
-    margin: 0 0 1.5rem;
-    color: #111827;
+  .markdown-body :global(ul) {
+    @apply list-disc pl-6 mb-4;
   }
 
-  .preview-content :global(h2) {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 2rem 0 1rem;
-    color: #1f2937;
+  .markdown-body :global(ol) {
+    @apply list-decimal pl-6 mb-4;
   }
 
-  .preview-content :global(h3) {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin: 1.5rem 0 0.75rem;
-    color: #374151;
+  .markdown-body :global(li) {
+    @apply mb-1;
   }
 
-  .preview-content :global(p) {
-    margin: 0 0 1rem;
-    line-height: 1.625;
-    color: #374151;
+  .markdown-body :global(blockquote) {
+    @apply border-l-4 border-primary/30 pl-4 py-1 italic mb-4 bg-base-200/50 rounded-r;
   }
 
-  .preview-content :global(ul),
-  .preview-content :global(ol) {
-    margin: 0 0 1rem;
-    padding-left: 1.75rem;
+  .markdown-body :global(pre) {
+    @apply bg-neutral text-neutral-content p-4 rounded-lg overflow-x-auto mb-4 font-mono text-sm;
   }
 
-  .preview-content :global(li) {
-    margin: 0.375rem 0;
-    line-height: 1.625;
-    color: #374151;
+  .markdown-body :global(code:not(pre code)) {
+    @apply bg-base-200 text-primary px-1.5 py-0.5 rounded font-mono text-[0.9em];
   }
 
-  .preview-content :global(pre) {
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    overflow-x: auto;
-    margin: 0 0 1rem;
+  .markdown-body :global(a) {
+    @apply text-primary hover:underline font-medium;
   }
 
-  .preview-content :global(code) {
-    background: #f3f4f6;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-size: 0.875em;
-    font-family: 'Courier New', monospace;
-  }
-
-  .preview-content :global(pre code) {
-    background: none;
-    padding: 0;
-  }
-
-  .preview-content :global(blockquote) {
-    border-left: 4px solid #e5e7eb;
-    padding-left: 1rem;
-    margin: 0 0 1rem;
-    color: #6b7280;
-    font-style: italic;
-  }
-
-  .preview-content :global(a) {
-    color: #3b82f6;
-    text-decoration: underline;
-  }
-
-  .preview-content :global(a:hover) {
-    color: #2563eb;
-  }
-
-  .btn {
-    padding: 0.625rem 1.25rem;
-    border: none;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-primary {
-    background: #3b82f6;
-    color: white;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: #2563eb;
-  }
-
-  .btn-secondary {
-    background: #e5e7eb;
-    color: #374151;
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background: #d1d5db;
+  .prose-container {
+    scrollbar-gutter: stable;
   }
 </style>

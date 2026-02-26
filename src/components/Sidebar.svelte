@@ -1,8 +1,10 @@
 <script lang="ts">
   import type { Guide, Folder } from '../lib/opfs';
-  import { exportAllGuides, exportAllData, importAllData, listFolders, createFolder, deleteFolder, renameFolder, moveGuideToFolder } from '../lib/opfs';
+  import { exportAllGuides, exportAllData, importAllData, listFolders, createFolder, deleteFolder, renameFolder, moveGuideToFolder, deleteGuide } from '../lib/opfs';
   import ContextMenu from './ContextMenu.svelte';
   import FolderContextMenu from './FolderContextMenu.svelte';
+  import Dialog from './Dialog.svelte';
+  import { notifications } from '../lib/notifications';
 
   type Props = {
     guides: Guide[];
@@ -24,7 +26,8 @@
   let expandedFolders = $state<Set<string>>(new Set());
   let contextMenu = $state<{ x: number; y: number; guideId: string } | null>(null);
   let folderContextMenu = $state<{ x: number; y: number; folderName: string } | null>(null);
-  let showMoveMenu = $state(false);
+  let showDeleteGuideConfirm = $state(false);
+  let guideToDelete = $state<Guide | null>(null);
 
   // Group guides by folder
   const groupedGuides = $derived(() => {
@@ -53,9 +56,10 @@
     isExporting = true;
     try {
       await exportAllGuides();
+      notifications.success('All guides exported successfully');
     } catch (error) {
       console.error('Failed to export guides:', error);
-      alert('Failed to export guides. Please try again.');
+      notifications.error('Failed to export guides');
     } finally {
       isExporting = false;
     }
@@ -65,9 +69,10 @@
     isExporting = true;
     try {
       await exportAllData();
+      notifications.success('Full backup created successfully');
     } catch (error) {
       console.error('Failed to export data:', error);
-      alert('Failed to export data. Please try again.');
+      notifications.error('Failed to export data');
     } finally {
       isExporting = false;
     }
@@ -87,10 +92,10 @@
         await importAllData(content);
         await loadFolders();
         onguideaction();
-        alert('Data imported successfully!');
+        notifications.success('Data imported successfully');
       } catch (error) {
         console.error('Failed to import data:', error);
-        alert('Failed to import data. Please ensure the file is a valid Guidy backup.');
+        notifications.error('Failed to import data. Ensure valid JSON backup.');
       } finally {
         isExporting = false;
         input.value = '';
@@ -108,9 +113,10 @@
       showNewFolderModal = false;
       await loadFolders();
       onguideaction();
+      notifications.success('Folder created');
     } catch (error) {
       console.error('Failed to create folder:', error);
-      alert('Failed to create folder. Please try again.');
+      notifications.error('Failed to create folder');
     }
   }
 
@@ -137,7 +143,6 @@
   function closeContextMenu() {
     contextMenu = null;
     folderContextMenu = null;
-    showMoveMenu = false;
   }
 
   function handleFolderContextMenu(e: MouseEvent, folderName: string) {
@@ -156,9 +161,10 @@
       await loadFolders();
       closeContextMenu();
       onguideaction();
+      notifications.success('Folder renamed');
     } catch (error) {
       console.error('Failed to rename folder:', error);
-      alert('Failed to rename folder. Please try again.');
+      notifications.error('Failed to rename folder');
     }
   }
 
@@ -166,21 +172,19 @@
     const guidesInFolder = groupedGuides().byFolder[folderName] || [];
     
     if (guidesInFolder.length > 0) {
-      alert(`Cannot delete folder "${folderName}". It contains ${guidesInFolder.length} guide(s). Please move or delete the guides first.`);
+      notifications.warning(`Cannot delete folder "${folderName}". It contains ${guidesInFolder.length} guide(s).`);
       return;
     }
-
-    const confirmed = confirm(`Delete folder "${folderName}"?`);
-    if (!confirmed) return;
 
     try {
       await deleteFolder(folderName);
       await loadFolders();
       closeContextMenu();
       onguideaction();
+      notifications.success('Folder deleted');
     } catch (error) {
       console.error('Failed to delete folder:', error);
-      alert('Failed to delete folder. Please try again.');
+      notifications.error('Failed to delete folder');
     }
   }
 
@@ -191,29 +195,36 @@
       await moveGuideToFolder(contextMenu.guideId, targetFolder);
       closeContextMenu();
       onguideaction();
+      notifications.success('Guide moved');
     } catch (error) {
       console.error('Failed to move guide:', error);
-      alert('Failed to move guide. Please try again.');
+      notifications.error('Failed to move guide');
     }
   }
 
-  async function handleDeleteGuide() {
+  function confirmDeleteGuide() {
     if (!contextMenu) return;
-
     const guide = guides.find(g => g.id === contextMenu?.guideId);
     if (!guide) return;
+    
+    guideToDelete = guide;
+    showDeleteGuideConfirm = true;
+    // Don't close context menu yet so we can still use its state
+  }
 
-    const confirmed = confirm(`Move "${guide.title}" to trash?`);
-    if (!confirmed) return;
+  async function handleDeleteGuide() {
+    if (!guideToDelete) return;
 
     try {
-      const { deleteGuide } = await import('../lib/opfs');
-      await deleteGuide(contextMenu.guideId);
+      await deleteGuide(guideToDelete.id);
       closeContextMenu();
+      showDeleteGuideConfirm = false;
+      guideToDelete = null;
       onguideaction();
+      notifications.success(`Moved guide to trash`);
     } catch (error) {
       console.error('Failed to delete guide:', error);
-      alert('Failed to delete guide. Please try again.');
+      notifications.error('Failed to delete guide');
     }
   }
 
@@ -221,9 +232,7 @@
     loadFolders();
   });
 
-  // Load folders on mount and whenever guides change
   $effect(() => {
-    // This will reactively update when guides change
     guides;
     loadFolders();
   });
@@ -231,39 +240,49 @@
 
 <svelte:window onclick={closeContextMenu} />
 
-<aside class="sidebar">
-  <h2 class="title">Guides</h2>
+<aside class="w-72 flex flex-col h-full bg-base-200 border-r border-base-300 shadow-sm z-10">
+  <div class="p-4 flex items-center justify-between border-b border-base-300 bg-base-100">
+    <h1 class="text-xl font-bold tracking-tight text-primary flex items-center gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      </svg>
+      Guidy
+    </h1>
+    <button class="btn btn-ghost btn-circle btn-sm" onclick={onnewguide} title="New Guide">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+      </svg>
+    </button>
+  </div>
 
-  <div class="list-container">
-    {#if guides.length === 0}
-      <p class="empty">No guides yet</p>
+  <div class="flex-1 overflow-y-auto overflow-x-hidden p-2">
+    {#if guides.length === 0 && folders.length === 0}
+      <div class="flex flex-col items-center justify-center h-full text-base-content/40 text-center px-4">
+        <p class="text-sm">No guides or folders yet. Create one to get started!</p>
+      </div>
     {:else}
-      <ul class="list">
+      <ul class="menu menu-sm w-full p-0">
         <!-- Uncategorized guides -->
         {#each groupedGuides().uncategorized as guide (guide.id)}
-          <li>
-            <div class="guide-item">
-              <div
-                class="guide-btn"
-                class:selected={guide.id === selectedId && !showTrash && !showNewGuide}
-                onclick={() => onselect(guide.id)}
-                oncontextmenu={(e) => handleContextMenu(e, guide.id)}
-                role="button"
-                tabindex="0"
-                onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
-              >
-                <span class="guide-title">{guide.title}</span>
-              </div>
+          <li class="group">
+            <div
+              class="flex justify-between items-center pr-1 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active' : ''}"
+              onclick={() => onselect(guide.id)}
+              oncontextmenu={(e) => handleContextMenu(e, guide.id)}
+              role="button"
+              tabindex="0"
+              onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
+            >
+              <span class="truncate flex-1 py-1">{guide.title}</span>
               <button
-                class="options-btn"
+                class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Options"
                 onclick={(e) => {
                   e.stopPropagation();
                   handleContextMenu(e, guide.id);
                 }}
-                type="button"
-                aria-label="Options"
               >
-                ⋮
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
               </button>
             </div>
           </li>
@@ -271,165 +290,123 @@
 
         <!-- Folders -->
         {#each folders as folder (folder.path)}
-          <li class="folder-item">
-            <div class="folder-header">
-              <button
-                class="folder-btn"
+          <li>
+            <details open={expandedFolders.has(folder.name)}>
+              <summary
+                class="group flex justify-between pr-1"
                 onclick={() => toggleFolder(folder.name)}
-                type="button"
+                oncontextmenu={(e) => handleFolderContextMenu(e, folder.name)}
               >
-                <span class="folder-icon">{expandedFolders.has(folder.name) ? '📂' : '📁'}</span>
-                <span class="folder-name">{folder.name}</span>
-              </button>
-              <button
-                class="options-btn"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  handleFolderContextMenu(e, folder.name);
-                }}
-                type="button"
-                aria-label="Folder options"
-              >
-                ⋮
-              </button>
-            </div>
-
-            {#if expandedFolders.has(folder.name)}
-              <ul class="folder-guides">
+                <div class="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                  </svg>
+                  <span class="font-medium">{folder.name}</span>
+                </div>
+              </summary>
+              <ul>
                 {#if groupedGuides().byFolder[folder.name]?.length > 0}
                   {#each groupedGuides().byFolder[folder.name] as guide (guide.id)}
-                    <li>
-                      <div class="guide-item nested">
-                        <div
-                          class="guide-btn"
-                          class:selected={guide.id === selectedId && !showTrash && !showNewGuide}
-                          onclick={() => onselect(guide.id)}
-                          oncontextmenu={(e) => handleContextMenu(e, guide.id)}
-                          role="button"
-                          tabindex="0"
-                          onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
-                        >
-                          <span class="guide-title">{guide.title}</span>
-                        </div>
+                    <li class="group">
+                      <div
+                        class="flex justify-between items-center pr-1 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active' : ''}"
+                        onclick={() => onselect(guide.id)}
+                        oncontextmenu={(e) => handleContextMenu(e, guide.id)}
+                        role="button"
+                        tabindex="0"
+                        onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
+                      >
+                        <span class="truncate flex-1 py-1">{guide.title}</span>
                         <button
-                          class="options-btn"
+                          class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          aria-label="Options"
                           onclick={(e) => {
                             e.stopPropagation();
                             handleContextMenu(e, guide.id);
                           }}
-                          type="button"
-                          aria-label="Options"
                         >
-                          ⋮
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
                         </button>
                       </div>
                     </li>
                   {/each}
                 {:else}
-                  <li class="empty-folder">Empty folder</li>
+                  <li class="disabled"><span class="italic text-xs opacity-50">Empty folder</span></li>
                 {/if}
               </ul>
-            {/if}
+            </details>
           </li>
         {/each}
       </ul>
     {/if}
   </div>
 
-  <div class="actions">
-    <button 
-      class="action-btn new-guide-btn"
-      onclick={onnewguide}
-      type="button"
-      disabled={isExporting}
-    >
-      ➕ New Guide
-    </button>
+  <div class="p-4 border-top border-base-300 bg-base-100 flex flex-col gap-2 shadow-inner">
+    <div class="grid grid-cols-2 gap-2">
+      <button class="btn btn-outline btn-sm" onclick={() => showNewFolderModal = true}>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+        </svg>
+        Folder
+      </button>
+      <button class="btn btn-sm {showTrash ? 'btn-error' : 'btn-outline'}" onclick={onshowtrash}>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+        Trash
+      </button>
+    </div>
 
-    <button 
-      class="action-btn"
-      onclick={() => showNewFolderModal = true}
-      type="button"
-      disabled={isExporting}
-    >
-      📁 New Folder
-    </button>
-
-    <button 
-      class="action-btn trash-btn"
-      class:active={showTrash}
-      onclick={onshowtrash}
-      type="button"
-      disabled={isExporting}
-    >
-      🗑️ {showTrash ? 'Hide Trash' : 'Trash'}
-    </button>
-
-    <button 
-      class="action-btn export-btn"
-      onclick={handleExportAll}
-      type="button"
-      disabled={isExporting || guides.length === 0}
-      title="Export all guides as individual .md files"
-    >
-      📦 Export All
-    </button>
-
-    <button 
-      class="action-btn export-btn"
-      onclick={handleExportComplete}
-      type="button"
-      disabled={isExporting}
-      title="Export complete backup (guides + versions + trash)"
-    >
-      💾 Full Backup
-    </button>
-
-    <label class="action-btn export-btn" title="Import data from a Guidy JSON backup">
-      📥 Import Backup
-      <input
-        type="file"
-        accept=".json"
-        onchange={handleImportData}
-        style="display: none;"
-        disabled={isExporting}
-      />
-    </label>
-
-    <button 
-      class="action-btn export-btn"
-      onclick={ () => {
-        window.open('https://www.markdownguide.org/basic-syntax/', '_blank')
-        }
-      }
-      type="button"
-      disabled={isExporting}
-      title="Export complete backup (guides + versions + trash)"
-    >
-      📖 Guide for writing
-    </button>
+    <div class="dropdown dropdown-top w-full">
+      <button tabindex="0" class="btn btn-ghost btn-block btn-sm justify-between">
+        More Actions
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>
+      </button>
+      <ul class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-full mb-2 border border-base-300">
+        <li><button onclick={handleExportAll} disabled={guides.length === 0}>Export All MD</button></li>
+        <li><button onclick={handleExportComplete}>Full Backup (JSON)</button></li>
+        <li>
+          <label class="cursor-pointer">
+            Import Backup
+            <input type="file" accept=".json" onchange={handleImportData} class="hidden" />
+          </label>
+        </li>
+        <div class="divider my-1"></div>
+        <li><a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noreferrer">Markdown Syntax Guide</a></li>
+      </ul>
+    </div>
   </div>
 </aside>
 
-{#if showNewFolderModal}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal-overlay" onclick={() => showNewFolderModal = false}>
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
-      <h3>Create New Folder</h3>
-      <input
-        class="folder-input"
-        placeholder="Folder name"
-        bind:value={newFolderName}
-        onkeydown={(e) => e.key === 'Enter' && handleCreateFolder()}
-      />
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick={() => showNewFolderModal = false}>Cancel</button>
-        <button class="btn-primary" onclick={handleCreateFolder} disabled={!newFolderName.trim()}>Create</button>
-      </div>
-    </div>
+<Dialog 
+  bind:open={showNewFolderModal} 
+  title="Create New Folder"
+  confirmText="Create"
+  onConfirm={handleCreateFolder}
+>
+  <div class="form-control w-full">
+    <label class="label" for="folder-name">
+      <span class="label-text">Folder Name</span>
+    </label>
+    <input
+      id="folder-name"
+      type="text"
+      placeholder="e.g. Work, Personal, Tutorials"
+      class="input input-bordered w-full"
+      bind:value={newFolderName}
+      onkeydown={(e) => e.key === 'Enter' && handleCreateFolder()}
+    />
   </div>
-{/if}
+</Dialog>
+
+<Dialog 
+  bind:open={showDeleteGuideConfirm} 
+  title="Move to Trash"
+  confirmText="Move to Trash"
+  onConfirm={handleDeleteGuide}
+>
+  <p>Are you sure you want to move <strong>{guideToDelete?.title}</strong> to the trash?</p>
+</Dialog>
 
 {#if contextMenu}
   <ContextMenu
@@ -437,7 +414,7 @@
     y={contextMenu.y}
     {folders}
     onmove={handleMoveGuide}
-    ondelete={handleDeleteGuide}
+    ondelete={confirmDeleteGuide}
     onclose={closeContextMenu}
   />
 {/if}
@@ -452,321 +429,3 @@
     onclose={closeContextMenu}
   />
 {/if}
-
-<style>
-  .sidebar {
-    width: 260px;
-    min-width: 260px;
-    border-right: 1px solid #e5e7eb;
-    background: #f9fafb;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin: 0;
-    padding: 1.25rem 1rem;
-    border-bottom: 1px solid #e5e7eb;
-    flex-shrink: 0;
-  }
-
-  .list-container {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-height: 0;
-  }
-
-  .empty {
-    padding: 1rem;
-    color: #6b7280;
-    font-size: 0.875rem;
-  }
-
-  .list {
-    list-style: none;
-    padding: 0.5rem;
-    margin: 0;
-  }
-
-  .guide-item {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    position: relative;
-  }
-
-  .guide-item.nested {
-    padding-left: 1.5rem;
-  }
-
-  .guide-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    text-align: left;
-    padding: 0.625rem 0.75rem;
-    background: none;
-    cursor: pointer;
-    border-radius: 0.375rem;
-    transition: background-color 0.15s;
-    font-size: 0.9375rem;
-    color: #374151;
-  }
-
-  .guide-title {
-    flex: 1;
-    word-wrap: break-word;
-    white-space: normal;
-    overflow: hidden;
-  }
-
-  .options-btn {
-    padding: 0.375rem 0.5rem;
-    border: none;
-    background: none;
-    cursor: pointer;
-    color: #9ca3af;
-    font-size: 1.125rem;
-    opacity: 0;
-    transition: opacity 0.15s;
-    flex-shrink: 0;
-  }
-
-  .guide-item:hover .options-btn,
-  .folder-header:hover .options-btn,
-  .options-btn:focus {
-    opacity: 1;
-  }
-
-  .options-btn:hover {
-    color: #374151;
-  }
-
-  .guide-btn:hover {
-    background: #f3f4f6;
-  }
-
-  .guide-btn.selected {
-    background: #e5e7eb;
-    font-weight: 500;
-    color: #111827;
-  }
-
-  .guide-btn:focus-visible {
-    outline: 2px solid #3b82f6;
-    outline-offset: -2px;
-  }
-
-  .folder-item {
-    margin-bottom: 0.25rem;
-  }
-
-  .folder-header {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .folder-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    text-align: left;
-    padding: 0.5rem 0.75rem;
-    border: none;
-    background: none;
-    cursor: pointer;
-    border-radius: 0.375rem;
-    transition: background-color 0.15s;
-    font-size: 0.9375rem;
-    color: #374151;
-    font-weight: 500;
-  }
-
-  .folder-btn:hover {
-    background: #f3f4f6;
-  }
-
-  .folder-icon {
-    font-size: 1rem;
-  }
-
-  .folder-name {
-    flex: 1;
-  }
-
-  .folder-guides {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  .empty-folder {
-    padding: 0.75rem 2rem;
-    color: #9ca3af;
-    font-size: 0.8125rem;
-    font-style: italic;
-  }
-
-  .actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 1rem;
-    border-top: 1px solid #e5e7eb;
-    background: #ffffff;
-    flex-shrink: 0;
-  }
-
-  .action-btn {
-    padding: 0.625rem 0.75rem;
-    border: 1px solid #d1d5db;
-    background: #ffffff;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #374151;
-    transition: all 0.15s;
-    text-align: left;
-  }
-
-  .action-btn:hover:not(:disabled) {
-    background: #f3f4f6;
-    border-color: #9ca3af;
-  }
-
-  .action-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .trash-btn.active {
-    background: #fee2e2;
-    border-color: #ef4444;
-    color: #dc2626;
-  }
-
-  .export-btn:hover:not(:disabled) {
-    background: #dbeafe;
-    border-color: #3b82f6;
-    color: #1e40af;
-  }
-
-  .new-guide-btn {
-    background: #3b82f6;
-    color: white;
-    border-color: #3b82f6;
-  }
-
-  .new-guide-btn:hover:not(:disabled) {
-    background: #2563eb;
-    border-color: #2563eb;
-  }
-
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .modal {
-    background: #ffffff;
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  }
-
-  .modal h3 {
-    margin: 0 0 1rem;
-    font-size: 1.125rem;
-    font-weight: 600;
-  }
-
-  .folder-input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    font-size: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .folder-input:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-  }
-
-  .btn-primary,
-  .btn-secondary {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .btn-primary {
-    background: #3b82f6;
-    color: white;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: #2563eb;
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-secondary {
-    background: #e5e7eb;
-    color: #374151;
-  }
-
-  .btn-secondary:hover {
-    background: #d1d5db;
-  }
-
-  .list-container::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  .list-container::-webkit-scrollbar-track {
-    background: #f9fafb;
-  }
-
-  .list-container::-webkit-scrollbar-thumb {
-    background: #d1d5db;
-    border-radius: 4px;
-  }
-
-  .list-container::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af;
-  }
-</style>

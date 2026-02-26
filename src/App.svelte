@@ -4,6 +4,7 @@
   import AddGuide from './components/AddGuide.svelte';
   import GuideViewer from './components/GuideViewer.svelte';
   import TrashBin from './components/TrashBin.svelte';
+  import Notification from './components/Notification.svelte';
   import { listGuides, type Guide } from './lib/opfs';
 
   let guides = $state<Guide[]>([]);
@@ -73,7 +74,7 @@
   }
 </script>
 
-<div class="layout">
+<div class="flex h-screen w-full bg-base-100 overflow-hidden">
   <Sidebar
     {guides}
     selectedId={selectedGuideId}
@@ -85,7 +86,7 @@
     {showNewGuide}
   />
 
-  <div class="main">
+  <main class="flex-1 flex flex-col min-w-0 bg-base-100">
     {#if showTrash}
       <TrashBin ontrashchanged={handleTrashChanged} />
     {:else if showNewGuide}
@@ -93,27 +94,35 @@
         onguideadded={handleGuideAdded}
         oncancel={handleCancelNewGuide}
       />
-    {:else}
+    {:else if selectedGuide}
       <GuideViewer 
         guide={selectedGuide}
         onupdated={handleGuideUpdated}
         ondeleted={handleGuideDeleted}
       />
+    {:else}
+      <div class="flex-1 flex flex-col items-center justify-center text-base-content/50 gap-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <p class="text-xl font-medium">Select a guide to start reading</p>
+        <button class="btn btn-primary btn-sm mt-2" onclick={handleNewGuide}>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Create New Guide
+        </button>
+      </div>
     {/if}
-  </div>
+  </main>
+
+  <Notification />
 </div>
 
 <style>
-  .layout {
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
+  @reference "./app.css";
 
-  .main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+  :global(body) {
+    @apply bg-base-100;
   }
 </style>

@@ -1,10 +1,11 @@
+import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [svelte(), VitePWA({
+  plugins: [tailwindcss(), svelte(), VitePWA({
     registerType: 'autoUpdate',
     injectRegister: false,
 

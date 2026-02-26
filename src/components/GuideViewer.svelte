@@ -3,9 +3,11 @@
   import { EditorView, basicSetup } from 'codemirror';
   import { EditorState } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
-  import { marked } from 'marked';
+  import { renderMarkdown, setupMarkdownListeners } from '../lib/markdown';
   import { deleteGuide, updateGuide, getVersionHistory, type Guide, type Version } from '../lib/opfs';
   import VersionHistory from './VersionHistory.svelte';
+  import { notifications } from '../lib/notifications';
+  import Dialog from './Dialog.svelte';
 
   type Props = {
     guide: Guide | null;
@@ -19,18 +21,23 @@
   let editContent = $state('');
   let isLoading = $state(false);
   let showVersions = $state(false);
+  let showDeleteConfirm = $state(false);
   let versions = $state<Version[]>([]);
   let editorElement = $state<HTMLElement>();
   let editorView = $state<EditorView | null>(null);
 
+  onMount(() => {
+    return setupMarkdownListeners();
+  });
+
   // Reactive HTML rendering for view mode
   const viewHtmlContent = $derived(
-    guide && !isEditing ? marked.parse(guide.content) : ''
+    guide && !isEditing ? renderMarkdown(guide.content) : ''
   );
 
   // Reactive HTML rendering for edit preview
   const editPreviewHtml = $derived(
-    isEditing && editContent ? marked.parse(editContent) : '<p class="placeholder">Start editing to see preview...</p>'
+    isEditing && editContent ? renderMarkdown(editContent) : '<p class="text-base-content/40 italic">Start editing to see preview...</p>'
   );
 
   function startEdit() {
@@ -83,9 +90,10 @@
       isEditing = false;
       editContent = '';
       onupdated();
+      notifications.success('Guide saved');
     } catch (error) {
       console.error('Failed to update guide:', error);
-      alert('Failed to update guide. Please try again.');
+      notifications.error('Failed to update guide');
     } finally {
       isLoading = false;
     }
@@ -94,18 +102,17 @@
   async function handleDelete() {
     if (!guide) return;
 
-    const confirmed = confirm(`Are you sure you want to delete "${guide.title}"?`);
-    if (!confirmed) return;
-
     isLoading = true;
     try {
       await deleteGuide(guide.id);
       ondeleted();
+      notifications.success('Guide moved to trash');
     } catch (error) {
       console.error('Failed to delete guide:', error);
-      alert('Failed to delete guide. Please try again.');
+      notifications.error('Failed to delete guide');
     } finally {
       isLoading = false;
+      showDeleteConfirm = false;
     }
   }
 
@@ -121,17 +128,15 @@
   async function restoreVersion(version: Version) {
     if (!guide) return;
 
-    const confirmed = confirm(`Restore this version from ${new Date(version.timestamp).toLocaleString()}?`);
-    if (!confirmed) return;
-
     isLoading = true;
     try {
       await updateGuide(guide.id, version.content);
       showVersions = false;
       onupdated();
+      notifications.success('Version restored');
     } catch (error) {
       console.error('Failed to restore version:', error);
-      alert('Failed to restore version. Please try again.');
+      notifications.error('Failed to restore version');
     } finally {
       isLoading = false;
     }
@@ -149,6 +154,7 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    notifications.info('Download started');
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -163,409 +169,180 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main class="content">
+<div class="flex-1 flex flex-col min-w-0 bg-base-100 relative">
   {#if guide}
-    <div class="toolbar">
-      <div class="toolbar-left">
+    <header class="navbar bg-base-100 border-b border-base-300 px-4 min-h-[4rem]">
+      <div class="flex-1">
+        <h2 class="text-lg font-bold truncate pr-4">{guide.title}</h2>
+      </div>
+      <div class="flex-none gap-2">
         {#if !isEditing}
-          <button class="btn btn-secondary" onclick={startEdit} disabled={isLoading}>
-            ✏️ Edit
-          </button>
-          <button class="btn btn-secondary" onclick={toggleVersionHistory} disabled={isLoading}>
-            📜 {showVersions ? 'Hide' : 'Show'} History
-          </button>
-          <button class="btn btn-secondary" onclick={downloadGuide} disabled={isLoading}>
-            💾 Download
-          </button>
-        {/if}
-      </div>
-      <div class="toolbar-right">
-        {#if isEditing}
-          <button class="btn btn-primary" onclick={saveEdit} disabled={isLoading}>
-            {isLoading ? 'Saving...' : '💾 Save'}
-          </button>
-          <button class="btn btn-secondary" onclick={cancelEdit} disabled={isLoading}>
-            ❌ Cancel
-          </button>
+          <div class="hidden sm:flex gap-2">
+            <button class="btn btn-ghost btn-sm" onclick={toggleVersionHistory} disabled={isLoading}>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              History
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick={downloadGuide} disabled={isLoading}>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              Download
+            </button>
+            <button class="btn btn-primary btn-sm" onclick={startEdit} disabled={isLoading}>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+              Edit
+            </button>
+            <button class="btn btn-ghost btn-sm text-error" onclick={() => showDeleteConfirm = true} disabled={isLoading}>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              Delete
+            </button>
+          </div>
+          <!-- Mobile menu -->
+          <div class="dropdown dropdown-end sm:hidden">
+            <button tabindex="0" class="btn btn-ghost btn-sm" aria-label="Menu">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+            </button>
+            <ul class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52 border border-base-300">
+              <li><button onclick={startEdit}>Edit</button></li>
+              <li><button onclick={toggleVersionHistory}>History</button></li>
+              <li><button onclick={downloadGuide}>Download</button></li>
+              <li><button onclick={() => showDeleteConfirm = true} class="text-error">Delete</button></li>
+            </ul>
+          </div>
         {:else}
-          <button class="btn btn-danger" onclick={handleDelete} disabled={isLoading}>
-            🗑️ Delete
+          <button class="btn btn-ghost btn-sm" onclick={cancelEdit} disabled={isLoading}>Cancel</button>
+          <button class="btn btn-primary btn-sm" onclick={saveEdit} disabled={isLoading}>
+            {#if isLoading}<span class="loading loading-spinner loading-xs"></span>{/if}
+            Save
           </button>
         {/if}
       </div>
+    </header>
+
+    <div class="flex-1 overflow-hidden flex flex-col">
+      {#if showVersions && !isEditing}
+        <div class="bg-base-200 border-b border-base-300">
+          <VersionHistory {versions} onrestore={restoreVersion} />
+        </div>
+      {/if}
+
+      {#if isEditing}
+        <div class="flex-1 flex overflow-hidden">
+          <div class="flex-1 flex flex-col border-r border-base-300 overflow-hidden">
+            <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Editor</div>
+            <div class="flex-1 overflow-auto bg-base-100" bind:this={editorElement}></div>
+          </div>
+          <div class="flex-1 hidden md:flex flex-col overflow-hidden bg-base-200">
+            <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Preview</div>
+            <div class="flex-1 overflow-auto p-8 prose-container">
+              <article class="markdown-body">
+                {@html editPreviewHtml}
+              </article>
+            </div>
+          </div>
+        </div>
+      {:else}
+        <div class="flex-1 overflow-auto p-4 sm:p-8 lg:p-12 bg-base-100 prose-container">
+          <article class="markdown-body max-w-4xl mx-auto">
+            {@html viewHtmlContent}
+          </article>
+        </div>
+      {/if}
     </div>
-
-    {#if showVersions && !isEditing}
-      <VersionHistory {versions} onrestore={restoreVersion} />
-    {/if}
-
-    {#if isEditing}
-      <div class="edit-container">
-        <div class="editor-panel">
-          <div class="panel-header">
-            <h3>Editor</h3>
-            <span class="hint">Markdown</span>
-          </div>
-          <div class="editor-wrapper">
-            <div bind:this={editorElement} class="editor"></div>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="preview-panel">
-          <div class="panel-header">
-            <h3>Preview</h3>
-            <span class="hint">Live preview</span>
-          </div>
-          <div class="preview-wrapper">
-            <article class="preview-content">
-              {@html editPreviewHtml}
-            </article>
-          </div>
-        </div>
-      </div>
-    {:else}
-      <article class="guide">
-        {@html viewHtmlContent}
-      </article>
-    {/if}
   {:else}
-    <div class="empty-state">
-      <p class="empty-text">Select a guide to view</p>
+    <div class="flex-1 flex items-center justify-center">
+      <p class="text-base-content/30 italic">Select a guide to view</p>
     </div>
   {/if}
-</main>
+</div>
+
+<Dialog
+  bind:open={showDeleteConfirm}
+  title="Delete Guide"
+  confirmText="Delete"
+  onConfirm={handleDelete}
+>
+  <p>Are you sure you want to move <strong>{guide?.title}</strong> to the trash?</p>
+</Dialog>
 
 <style>
-  .content {
-    flex: 1;
-    overflow-y: auto;
-    background: #ffffff;
-    display: flex;
-    flex-direction: column;
-  }
+  @reference "../app.css";
 
-  .toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #f9fafb;
-    gap: 1rem;
-  }
-
-  .toolbar-left,
-  .toolbar-right {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .btn {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-primary {
-    background: #3b82f6;
-    color: white;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: #2563eb;
-  }
-
-  .btn-secondary {
-    background: #e5e7eb;
-    color: #374151;
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background: #d1d5db;
-  }
-
-  .btn-danger {
-    background: #ef4444;
-    color: white;
-  }
-
-  .btn-danger:hover:not(:disabled) {
-    background: #dc2626;
-  }
-
-  .edit-container {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-  }
-
-  .editor-panel,
-  .preview-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #f9fafb;
-  }
-
-  .panel-header h3 {
-    margin: 0;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #374151;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .hint {
-    font-size: 0.75rem;
-    color: #9ca3af;
-  }
-
-  .editor-wrapper,
-  .preview-wrapper {
-    flex: 1;
-    overflow: auto;
-  }
-
-  .editor {
+  :global(.cm-editor) {
     height: 100%;
-    background: #ffffff;
+    outline: none !important;
+  }
+  
+  :global(.cm-scroller) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.6;
   }
 
-  .editor :global(.cm-editor) {
-    height: 100%;
-    background: #ffffff;
+  .markdown-body {
+    line-height: 1.6;
+    color: var(--color-base-content);
   }
 
-  .editor :global(.cm-content) {
-    background: #ffffff;
+  .markdown-body :global(h1) {
+    @apply text-4xl font-extrabold mb-6 pb-2 border-b border-base-300 mt-8 first:mt-0;
   }
 
-  .editor :global(.cm-gutters) {
-    background: #f9fafb;
-    border-right: 1px solid #e5e7eb;
+  .markdown-body :global(h2) {
+    @apply text-2xl font-bold mb-4 mt-8 pb-1 border-b border-base-200;
   }
 
-  .editor :global(.cm-scroller) {
-    overflow: auto;
-    padding: 1rem;
+  .markdown-body :global(h3) {
+    @apply text-xl font-bold mb-3 mt-6;
   }
 
-  .divider {
-    width: 1px;
-    background: #e5e7eb;
-    flex-shrink: 0;
+  .markdown-body :global(p) {
+    @apply mb-4 leading-relaxed;
   }
 
-  .preview-content {
-    max-width: 48rem;
-    margin: 0 auto;
-    padding: 2rem 1.5rem;
-    width: 100%;
+  .markdown-body :global(ul) {
+    @apply list-disc pl-6 mb-4;
   }
 
-  .preview-content :global(.placeholder) {
-    color: #9ca3af;
-    font-style: italic;
+  .markdown-body :global(ol) {
+    @apply list-decimal pl-6 mb-4;
   }
 
-  .guide {
-    flex: 1;
-    max-width: 48rem;
-    margin: 0 auto;
-    padding: 2rem 1.5rem;
-    width: 100%;
-    overflow-y: auto;
+  .markdown-body :global(li) {
+    @apply mb-1;
   }
 
-  .empty-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 2rem;
+  .markdown-body :global(blockquote) {
+    @apply border-l-4 border-primary/30 pl-4 py-1 italic mb-4 bg-base-200/50 rounded-r;
   }
 
-  .empty-text {
-    color: #6b7280;
-    font-size: 1rem;
+  .markdown-body :global(pre) {
+    @apply bg-neutral text-neutral-content p-4 rounded-lg overflow-x-auto mb-4 font-mono text-sm;
   }
 
-  /* Markdown styling for view mode */
-  .guide :global(h1) {
-    font-size: 2rem;
-    font-weight: 700;
-    margin: 0 0 1.5rem;
-    color: #111827;
+  .markdown-body :global(code:not(pre code)) {
+    @apply bg-base-200 text-primary px-1.5 py-0.5 rounded font-mono text-[0.9em];
   }
 
-  .guide :global(h2) {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 2rem 0 1rem;
-    color: #1f2937;
+  .markdown-body :global(a) {
+    @apply text-primary hover:underline font-medium;
   }
 
-  .guide :global(h3) {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin: 1.5rem 0 0.75rem;
-    color: #374151;
+  .markdown-body :global(img) {
+    @apply max-w-full h-auto rounded-lg shadow-md my-6;
   }
 
-  .guide :global(p) {
-    margin: 0 0 1rem;
-    line-height: 1.625;
-    color: #374151;
+  .markdown-body :global(table) {
+    @apply w-full border-collapse mb-4;
   }
 
-  .guide :global(ul),
-  .guide :global(ol) {
-    margin: 0 0 1rem;
-    padding-left: 1.75rem;
+  .markdown-body :global(th), .markdown-body :global(td) {
+    @apply border border-base-300 p-2 text-left;
   }
 
-  .guide :global(li) {
-    margin: 0.375rem 0;
-    line-height: 1.625;
-    color: #374151;
+  .markdown-body :global(th) {
+    @apply bg-base-200 font-bold;
   }
 
-  .guide :global(pre) {
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    overflow-x: auto;
-    margin: 0 0 1rem;
-  }
-
-  .guide :global(code) {
-    background: #f3f4f6;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-size: 0.875em;
-    font-family: 'Courier New', monospace;
-  }
-
-  .guide :global(pre code) {
-    background: none;
-    padding: 0;
-  }
-
-  .guide :global(blockquote) {
-    border-left: 4px solid #e5e7eb;
-    padding-left: 1rem;
-    margin: 0 0 1rem;
-    color: #6b7280;
-    font-style: italic;
-  }
-
-  .guide :global(a) {
-    color: #3b82f6;
-    text-decoration: underline;
-  }
-
-  .guide :global(a:hover) {
-    color: #2563eb;
-  }
-
-  /* Markdown styling for preview mode */
-  .preview-content :global(h1) {
-    font-size: 2rem;
-    font-weight: 700;
-    margin: 0 0 1.5rem;
-    color: #111827;
-  }
-
-  .preview-content :global(h2) {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 2rem 0 1rem;
-    color: #1f2937;
-  }
-
-  .preview-content :global(h3) {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin: 1.5rem 0 0.75rem;
-    color: #374151;
-  }
-
-  .preview-content :global(p) {
-    margin: 0 0 1rem;
-    line-height: 1.625;
-    color: #374151;
-  }
-
-  .preview-content :global(ul),
-  .preview-content :global(ol) {
-    margin: 0 0 1rem;
-    padding-left: 1.75rem;
-  }
-
-  .preview-content :global(li) {
-    margin: 0.375rem 0;
-    line-height: 1.625;
-    color: #374151;
-  }
-
-  .preview-content :global(pre) {
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    overflow-x: auto;
-    margin: 0 0 1rem;
-  }
-
-  .preview-content :global(code) {
-    background: #f3f4f6;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-size: 0.875em;
-    font-family: 'Courier New', monospace;
-  }
-
-  .preview-content :global(pre code) {
-    background: none;
-    padding: 0;
-  }
-
-  .preview-content :global(blockquote) {
-    border-left: 4px solid #e5e7eb;
-    padding-left: 1rem;
-    margin: 0 0 1rem;
-    color: #6b7280;
-    font-style: italic;
-  }
-
-  .preview-content :global(a) {
-    color: #3b82f6;
-    text-decoration: underline;
-  }
-
-  .preview-content :global(a:hover) {
-    color: #2563eb;
+  .prose-container {
+    scrollbar-gutter: stable;
   }
 </style>

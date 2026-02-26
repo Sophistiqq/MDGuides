@@ -12,8 +12,7 @@
 
   let { x, y, folders, onmove, ondelete, onclose }: Props = $props();
 
-  let showFolderSubmenu = $state(false);
-  let menuElement: HTMLDivElement;
+  let menuElement = $state<HTMLElement>();
 
   // Adjust position if menu would go off-screen
   const adjustedPosition = $derived(() => {
@@ -44,141 +43,51 @@
 
 <div
   bind:this={menuElement}
-  class="context-menu"
+  class="fixed z-[2000] min-w-[180px]"
   style="left: {adjustedPosition().x}px; top: {adjustedPosition().y}px;"
   onclick={(e) => e.stopPropagation()}
   onkeydown={(e) => e.key === 'Escape' && onclose()}
   role="menu"
   tabindex="-1"
 >
-  <div
-    class="menu-item"
-    onmouseenter={() => showFolderSubmenu = true}
-    onmouseleave={() => showFolderSubmenu = false}
-    role="menuitem"
-    tabindex="0"
-  >
-    <span>📁 Move to...</span>
-    <span class="arrow">›</span>
-
-    {#if showFolderSubmenu}
-      <div class="submenu" role="menu">
-        <button
-          class="menu-item"
-          onclick={() => handleMove('')}
-          type="button"
-          role="menuitem"
-        >
-          🏠 Root (No Folder)
-        </button>
-        {#each folders as folder (folder.path)}
-          <button
-            class="menu-item"
-            onclick={() => handleMove(folder.path)}
-            type="button"
-            role="menuitem"
-          >
-            📁 {folder.name}
-          </button>
-        {/each}
-        {#if folders.length === 0}
-          <div class="menu-item disabled" role="menuitem">No folders available</div>
-        {/if}
-      </div>
-    {/if}
-  </div>
-
-  <div class="divider"></div>
-
-  <button
-    class="menu-item danger"
-    onclick={ondelete}
-    type="button"
-    role="menuitem"
-  >
-    🗑️ Delete
-  </button>
+  <ul class="menu bg-base-100 rounded-box shadow-2xl border border-base-300 p-1 w-full">
+    <li>
+      <details>
+        <summary class="flex justify-between items-center py-2 px-3">
+          <span class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+            Move to...
+          </span>
+        </summary>
+        <ul class="bg-base-100 border border-base-200 shadow-lg rounded-box z-[2001]">
+          <li>
+            <button onclick={() => handleMove('')} class="py-2 px-3">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001-1m-6 0h6" /></svg>
+              Root (No Folder)
+            </button>
+          </li>
+          {#each folders as folder (folder.path)}
+            <li>
+              <button onclick={() => handleMove(folder.path)} class="py-2 px-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>
+                {folder.name}
+              </button>
+            </li>
+          {/each}
+          {#if folders.length === 0}
+            <li class="disabled"><span class="italic text-xs py-2 px-3">No folders</span></li>
+          {/if}
+        </ul>
+      </details>
+    </li>
+    
+    <div class="divider my-1"></div>
+    
+    <li>
+      <button onclick={ondelete} class="text-error hover:bg-error/10 py-2 px-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+        Delete
+      </button>
+    </li>
+  </ul>
 </div>
-
-<style>
-  .context-menu {
-    position: fixed;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-    padding: 0.375rem;
-    min-width: 180px;
-    z-index: 2000;
-  }
-
-  .menu-item {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    text-align: left;
-    padding: 0.625rem 0.875rem;
-    border: none;
-    background: none;
-    cursor: pointer;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    color: #374151;
-    transition: background-color 0.15s;
-    position: relative;
-  }
-
-  .menu-item:hover:not(.disabled) {
-    background: #f3f4f6;
-  }
-
-  .menu-item.danger:hover {
-    background: #fee2e2;
-    color: #dc2626;
-  }
-
-  .menu-item.disabled {
-    color: #9ca3af;
-    cursor: default;
-  }
-
-  .arrow {
-    color: #9ca3af;
-    font-size: 1rem;
-  }
-
-  .divider {
-    height: 1px;
-    background: #e5e7eb;
-    margin: 0.375rem 0;
-  }
-
-  .submenu {
-    position: absolute;
-    left: 100%;
-    top: -0.375rem;
-    margin-left: 0.25rem;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-    padding: 0.375rem;
-    min-width: 200px;
-    max-height: 300px;
-    overflow-y: auto;
-  }
-
-  .submenu::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .submenu::-webkit-scrollbar-track {
-    background: #f9fafb;
-  }
-
-  .submenu::-webkit-scrollbar-thumb {
-    background: #d1d5db;
-    border-radius: 3px;
-  }
-</style>
