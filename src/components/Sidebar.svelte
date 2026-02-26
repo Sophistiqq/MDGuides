@@ -28,6 +28,7 @@
   let folderContextMenu = $state<{ x: number; y: number; folderName: string } | null>(null);
   let showDeleteGuideConfirm = $state(false);
   let guideToDelete = $state<Guide | null>(null);
+  let fileInput = $state<HTMLInputElement>();
 
   // Group guides by folder
   const groupedGuides = $derived(() => {
@@ -364,10 +365,16 @@
         <li><button onclick={handleExportAll} disabled={guides.length === 0}>Export All MD</button></li>
         <li><button onclick={handleExportComplete}>Full Backup (JSON)</button></li>
         <li>
-          <label class="cursor-pointer">
+          <button onclick={() => fileInput?.click()}>
             Import Backup
-            <input type="file" accept=".json" onchange={handleImportData} class="hidden" />
-          </label>
+          </button>
+          <input 
+            type="file" 
+            accept=".json" 
+            onchange={handleImportData} 
+            class="hidden" 
+            bind:this={fileInput} 
+          />
         </li>
         <div class="divider my-1"></div>
         <li><a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noreferrer">Markdown Syntax Guide</a></li>
