@@ -47,22 +47,27 @@
   class="context-menu"
   style="left: {adjustedPosition().x}px; top: {adjustedPosition().y}px;"
   onclick={(e) => e.stopPropagation()}
+  onkeydown={(e) => e.key === 'Escape' && onclose()}
+  role="menu"
+  tabindex="-1"
 >
-  <button
+  <div
     class="menu-item"
     onmouseenter={() => showFolderSubmenu = true}
     onmouseleave={() => showFolderSubmenu = false}
-    type="button"
+    role="menuitem"
+    tabindex="0"
   >
     <span>📁 Move to...</span>
     <span class="arrow">›</span>
 
     {#if showFolderSubmenu}
-      <div class="submenu">
+      <div class="submenu" role="menu">
         <button
           class="menu-item"
           onclick={() => handleMove('')}
           type="button"
+          role="menuitem"
         >
           🏠 Root (No Folder)
         </button>
@@ -71,16 +76,17 @@
             class="menu-item"
             onclick={() => handleMove(folder.path)}
             type="button"
+            role="menuitem"
           >
             📁 {folder.name}
           </button>
         {/each}
         {#if folders.length === 0}
-          <div class="menu-item disabled">No folders available</div>
+          <div class="menu-item disabled" role="menuitem">No folders available</div>
         {/if}
       </div>
     {/if}
-  </button>
+  </div>
 
   <div class="divider"></div>
 
@@ -88,6 +94,7 @@
     class="menu-item danger"
     onclick={ondelete}
     type="button"
+    role="menuitem"
   >
     🗑️ Delete
   </button>

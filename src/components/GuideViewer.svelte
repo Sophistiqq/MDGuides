@@ -20,8 +20,8 @@
   let isLoading = $state(false);
   let showVersions = $state(false);
   let versions = $state<Version[]>([]);
-  let editorElement: HTMLElement;
-  let editorView: EditorView | null = null;
+  let editorElement = $state<HTMLElement>();
+  let editorView = $state<EditorView | null>(null);
 
   // Reactive HTML rendering for view mode
   const viewHtmlContent = $derived(

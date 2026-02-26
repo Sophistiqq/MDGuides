@@ -11,8 +11,14 @@
   let { x, y, folderName, onrename, ondelete, onclose }: Props = $props();
 
   let showRenameModal = $state(false);
-  let newFolderName = $state(folderName);
-  let menuElement: HTMLDivElement;
+  let newFolderName = $state('');
+  let menuElement = $state<HTMLDivElement>();
+
+  $effect(() => {
+    if (showRenameModal) {
+      newFolderName = folderName;
+    }
+  });
 
   // Adjust position if menu would go off-screen
   const adjustedPosition = $derived(() => {
@@ -37,6 +43,7 @@
   });
 
   function handleRename() {
+    newFolderName = folderName;
     showRenameModal = true;
   }
 
@@ -50,24 +57,39 @@
 
   function cancelRename() {
     showRenameModal = false;
-    newFolderName = folderName;
   }
 
   function handleDelete() {
     ondelete(folderName);
   }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      if (showRenameModal) {
+        cancelRename();
+      } else {
+        onclose();
+      }
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div
   bind:this={menuElement}
   class="context-menu"
   style="left: {adjustedPosition().x}px; top: {adjustedPosition().y}px;"
   onclick={(e) => e.stopPropagation()}
+  onkeydown={(e) => e.key === 'Escape' && onclose()}
+  role="menu"
+  tabindex="-1"
 >
   <button
     class="menu-item"
     onclick={handleRename}
     type="button"
+    role="menuitem"
   >
     ✏️ Rename
   </button>
@@ -78,21 +100,33 @@
     class="menu-item danger"
     onclick={handleDelete}
     type="button"
+    role="menuitem"
   >
     🗑️ Delete
   </button>
 </div>
 
 {#if showRenameModal}
-  <div class="modal-overlay" onclick={cancelRename}>
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
-      <h3>Rename Folder</h3>
+  <div 
+    class="modal-overlay" 
+    onclick={cancelRename} 
+    onkeydown={(e) => e.key === 'Escape' && cancelRename()}
+    role="presentation"
+  >
+    <div 
+      class="modal" 
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-labelledby="rename-folder-title"
+      tabindex="-1"
+    >
+      <h3 id="rename-folder-title">Rename Folder</h3>
       <input
         class="folder-input"
         placeholder="New folder name"
         bind:value={newFolderName}
         onkeydown={(e) => e.key === 'Enter' && confirmRename()}
-        autofocus
       />
       <div class="modal-actions">
         <button class="btn-secondary" onclick={cancelRename}>Cancel</button>

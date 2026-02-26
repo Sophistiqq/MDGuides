@@ -75,7 +75,7 @@ export async function renameFolder(oldName: string, newName: string) {
   
   for await (const [name, handle] of oldFolder.entries()) {
     if (handle.kind === 'file') {
-      const file = await handle.getFile();
+      const file = await (handle as FileSystemFileHandle).getFile();
       const content = await file.text();
       
       const newFileHandle = await newFolder.getFileHandle(name, { create: true });
@@ -116,7 +116,7 @@ export async function listGuides() {
   async function scanDirectory(dirHandle: FileSystemDirectoryHandle, folderPath: string = '') {
     for await (const [name, handle] of dirHandle.entries()) {
       if (handle.kind === 'file' && name.endsWith('.md')) {
-        const file = await handle.getFile();
+        const file = await (handle as FileSystemFileHandle).getFile();
         const content = await file.text();
 
         guides.push({
@@ -126,7 +126,7 @@ export async function listGuides() {
           folder: folderPath || undefined
         });
       } else if (handle.kind === 'directory') {
-        await scanDirectory(handle, folderPath ? `${folderPath}/${name}` : name);
+        await scanDirectory(handle as FileSystemDirectoryHandle, folderPath ? `${folderPath}/${name}` : name);
       }
     }
   }
@@ -173,7 +173,7 @@ export async function listTrashedGuides() {
   for await (const [name, handle] of dir.entries()) {
     if (handle.kind !== 'file' || !name.endsWith('.md')) continue;
 
-    const file = await handle.getFile();
+    const file = await (handle as FileSystemFileHandle).getFile();
     const content = await file.text();
     
     const lines = content.split('\n');
@@ -334,7 +334,7 @@ export async function getVersionHistory(guideId: string): Promise<Version[]> {
       if (handle.kind !== 'file' || !name.endsWith('.md')) continue;
       
       const timestamp = parseInt(name.replace('.md', ''));
-      const file = await handle.getFile();
+      const file = await (handle as FileSystemFileHandle).getFile();
       const content = await file.text();
       
       versions.push({
@@ -410,4 +410,65 @@ export async function exportAllData() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export async function importAllData(jsonData: string) {
+  const backup = JSON.parse(jsonData);
+  
+  // 1. Restore Folders
+  const guidesDir = await getGuidesDir();
+  if (backup.folders) {
+    for (const folder of backup.folders) {
+      await guidesDir.getDirectoryHandle(folder.name, { create: true });
+    }
+  }
+
+  // 2. Restore Guides
+  if (backup.guides) {
+    for (const guide of backup.guides) {
+      const parts = guide.id.split('/');
+      const filename = `${parts[parts.length - 1]}.md`;
+      
+      let currentDir = guidesDir;
+      for (let i = 0; i < parts.length - 1; i++) {
+        currentDir = await currentDir.getDirectoryHandle(parts[i], { create: true });
+      }
+      
+      const fileHandle = await currentDir.getFileHandle(filename, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(guide.content);
+      await writable.close();
+    }
+  }
+
+  // 3. Restore Trash
+  if (backup.trash) {
+    const trashDir = await getTrashDir();
+    for (const item of backup.trash) {
+      const filename = `${item.id.split('/').pop()}.md`;
+      const folderInfo = item.folder || 'ROOT';
+      const trashContent = `<!-- DELETED_AT:${item.deletedAt} FOLDER:${folderInfo} -->\n${item.content}`;
+      const trashHandle = await trashDir.getFileHandle(filename, { create: true });
+      const writable = await trashHandle.createWritable();
+      await writable.write(trashContent);
+      await writable.close();
+    }
+  }
+
+  // 4. Restore Versions
+  if (backup.versions) {
+    const versionsDir = await getVersionsDir();
+    for (const [guideId, versions] of Object.entries(backup.versions)) {
+      const cleanId = guideId.replace(/\//g, '_');
+      const guideVersionDir = await versionsDir.getDirectoryHandle(cleanId, { create: true });
+      
+      for (const version of (versions as Version[])) {
+        const filename = `${version.timestamp}.md`;
+        const fileHandle = await guideVersionDir.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(version.content);
+        await writable.close();
+      }
+    }
+  }
 }

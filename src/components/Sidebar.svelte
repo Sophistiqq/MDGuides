@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Guide, Folder } from '../lib/opfs';
-  import { exportAllGuides, exportAllData, listFolders, createFolder, deleteFolder, renameFolder, moveGuideToFolder } from '../lib/opfs';
+  import { exportAllGuides, exportAllData, importAllData, listFolders, createFolder, deleteFolder, renameFolder, moveGuideToFolder } from '../lib/opfs';
   import ContextMenu from './ContextMenu.svelte';
   import FolderContextMenu from './FolderContextMenu.svelte';
 
@@ -71,6 +71,32 @@
     } finally {
       isExporting = false;
     }
+  }
+
+  async function handleImportData(e: Event) {
+    const input = e.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
+    const reader = new FileReader();
+
+    isExporting = true;
+    reader.onload = async (event) => {
+      try {
+        const content = event.target?.result as string;
+        await importAllData(content);
+        await loadFolders();
+        onguideaction();
+        alert('Data imported successfully!');
+      } catch (error) {
+        console.error('Failed to import data:', error);
+        alert('Failed to import data. Please ensure the file is a valid Guidy backup.');
+      } finally {
+        isExporting = false;
+        input.value = '';
+      }
+    };
+    reader.readAsText(file);
   }
 
   async function handleCreateFolder() {
@@ -358,6 +384,18 @@
     >
       💾 Full Backup
     </button>
+
+    <label class="action-btn export-btn" title="Import data from a Guidy JSON backup">
+      📥 Import Backup
+      <input
+        type="file"
+        accept=".json"
+        onchange={handleImportData}
+        style="display: none;"
+        disabled={isExporting}
+      />
+    </label>
+
     <button 
       class="action-btn export-btn"
       onclick={ () => {
