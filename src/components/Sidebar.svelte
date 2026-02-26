@@ -292,30 +292,33 @@
           <li>
             <details open={expandedFolders.has(folder.name)}>
               <summary
-                class="group flex justify-between pr-1"
-                onclick={() => toggleFolder(folder.name)}
+                class="group flex justify-between items-center py-3 px-4 hover:bg-base-300 transition-colors"
+                onclick={(e) => {
+                  e.preventDefault();
+                  toggleFolder(folder.name);
+                }}
                 oncontextmenu={(e) => handleFolderContextMenu(e, folder.name)}
               >
-                <div class="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
+                <div class="flex items-center gap-3 min-w-0 flex-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                   </svg>
-                  <span class="font-medium">{folder.name}</span>
+                  <span class="font-bold text-sm truncate">{folder.name}</span>
                 </div>
               </summary>
-              <ul>
+              <ul class="before:hidden ml-2 border-l border-base-300">
                 {#if groupedGuides().byFolder[folder.name]?.length > 0}
                   {#each groupedGuides().byFolder[folder.name] as guide (guide.id)}
                     <li class="group">
                       <div
-                        class="flex justify-between items-center pr-1 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active' : ''}"
+                        class="flex justify-between items-center py-2 px-4 {guide.id === selectedId && !showTrash && !showNewGuide ? 'active font-bold' : ''}"
                         onclick={() => onselect(guide.id)}
                         oncontextmenu={(e) => handleContextMenu(e, guide.id)}
                         role="button"
                         tabindex="0"
                         onkeydown={(e) => e.key === 'Enter' && onselect(guide.id)}
                       >
-                        <span class="truncate flex-1 py-1">{guide.title}</span>
+                        <span class="truncate flex-1 text-sm">{guide.title}</span>
                         <button
                           class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity"
                           aria-label="Options"
@@ -330,7 +333,7 @@
                     </li>
                   {/each}
                 {:else}
-                  <li class="disabled"><span class="italic text-xs opacity-50">Empty folder</span></li>
+                  <li class="disabled py-2 px-4"><span class="italic text-xs opacity-50">Empty folder</span></li>
                 {/if}
               </ul>
             </details>
@@ -340,16 +343,16 @@
     {/if}
   </div>
 
-  <div class="p-4 border-top border-base-300 bg-base-100 flex flex-col gap-2 shadow-inner">
+  <div class="p-4 border-t border-base-300 bg-base-100 flex flex-col gap-3 shadow-inner">
     <div class="grid grid-cols-2 gap-2">
-      <button class="btn btn-outline btn-sm" onclick={() => showNewFolderModal = true}>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <button class="btn btn-outline btn-md" onclick={() => showNewFolderModal = true}>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
         </svg>
         Folder
       </button>
-      <button class="btn btn-sm {showTrash ? 'btn-error' : 'btn-outline'}" onclick={onshowtrash}>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <button class="btn btn-md {showTrash ? 'btn-error' : 'btn-outline'}" onclick={onshowtrash}>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
         Trash
@@ -357,15 +360,15 @@
     </div>
 
     <div class="dropdown dropdown-top w-full">
-      <button tabindex="0" class="btn btn-ghost btn-block btn-sm justify-between">
-        More Actions
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>
+      <button tabindex="0" class="btn btn-ghost btn-block btn-md justify-between bg-base-200">
+        <span>More Actions</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>
       </button>
-      <ul class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-full mb-2 border border-base-300">
-        <li><button onclick={handleExportAll} disabled={guides.length === 0}>Export All MD</button></li>
-        <li><button onclick={handleExportComplete}>Full Backup (JSON)</button></li>
+      <ul class="dropdown-content z-[1] menu p-2 shadow-xl bg-base-100 rounded-box w-full mb-2 border border-base-300">
+        <li><button class="py-3" onclick={handleExportAll} disabled={guides.length === 0}>Export All MD</button></li>
+        <li><button class="py-3" onclick={handleExportComplete}>Full Backup (JSON)</button></li>
         <li>
-          <button onclick={() => fileInput?.click()}>
+          <button class="py-3" onclick={() => fileInput?.click()}>
             Import Backup
           </button>
           <input 
@@ -377,7 +380,7 @@
           />
         </li>
         <div class="divider my-1"></div>
-        <li><a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noreferrer">Markdown Syntax Guide</a></li>
+        <li><a class="py-3" href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noreferrer">Markdown Syntax Guide</a></li>
       </ul>
     </div>
   </div>
