@@ -86,7 +86,7 @@
     {showNewGuide}
   />
 
-  <main class="flex-1 flex flex-col min-w-0 bg-base-100">
+  <main class="flex-1 flex flex-col min-w-0 min-h-0 bg-base-100">
     {#if showTrash}
       <TrashBin ontrashchanged={handleTrashChanged} />
     {:else if showNewGuide}

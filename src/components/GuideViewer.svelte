@@ -169,9 +169,9 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex-1 flex flex-col min-w-0 bg-base-100 relative">
+<div class="flex-1 flex flex-col min-w-0 min-h-0 bg-base-100 relative">
   {#if guide}
-    <header class="navbar bg-base-100 border-b border-base-300 px-4 min-h-[4rem]">
+    <header class="navbar flex-none bg-base-100 border-b border-base-300 px-4 min-h-[4rem]">
       <div class="flex-1">
         <h2 class="text-lg font-bold truncate pr-4">{guide.title}</h2>
       </div>
@@ -217,21 +217,21 @@
       </div>
     </header>
 
-    <div class="flex-1 overflow-hidden flex flex-col">
+    <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
       {#if showVersions && !isEditing}
-        <div class="bg-base-200 border-b border-base-300">
+        <div class="flex-none bg-base-200 border-b border-base-300">
           <VersionHistory {versions} onrestore={restoreVersion} />
         </div>
       {/if}
 
       {#if isEditing}
-        <div class="flex-1 flex overflow-hidden">
+        <div class="flex-1 min-h-0 flex overflow-hidden">
           <div class="flex-1 flex flex-col border-r border-base-300 overflow-hidden">
-            <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Editor</div>
-            <div class="flex-1 overflow-auto bg-base-100" bind:this={editorElement}></div>
+            <div class="flex-none bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Editor</div>
+            <div class="flex-1 overflow-hidden bg-base-100" bind:this={editorElement}></div>
           </div>
           <div class="flex-1 hidden md:flex flex-col overflow-hidden bg-base-200">
-            <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Preview</div>
+            <div class="flex-none bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Preview</div>
             <div class="flex-1 overflow-auto p-8 prose-container">
               <article class="markdown-body">
                 {@html editPreviewHtml}

@@ -88,8 +88,8 @@
   }
 </script>
 
-<div class="flex-1 flex flex-col bg-base-100 overflow-hidden">
-  <header class="navbar bg-error/10 border-b border-error/20 px-4 min-h-[4rem]">
+<div class="flex-1 flex flex-col bg-base-100 overflow-hidden min-h-0">
+  <header class="navbar flex-none bg-error/10 border-b border-error/20 px-4 min-h-[4rem]">
     <div class="flex-1">
       <h2 class="text-lg font-bold text-error flex items-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -109,7 +109,7 @@
     </div>
   </header>
 
-  <div class="flex-1 flex overflow-hidden">
+  <div class="flex-1 flex min-h-0 overflow-hidden">
     <div class="w-80 flex flex-col border-r border-base-300 bg-base-200 overflow-hidden">
       {#if trashedGuides.length === 0}
         <div class="flex-1 flex items-center justify-center p-8 text-center text-base-content/30 italic">
@@ -156,9 +156,9 @@
       {/if}
     </div>
 
-    <div class="flex-1 overflow-auto bg-base-100 prose-container">
+    <div class="flex-1 min-h-0 overflow-auto bg-base-100 prose-container">
       {#if selectedTrash}
-        <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300 sticky top-0 z-10">Preview</div>
+        <div class="flex-none bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300 sticky top-0 z-10">Preview</div>
         <article class="markdown-body p-8 sm:p-12 max-w-4xl mx-auto">
           {@html previewContent}
         </article>

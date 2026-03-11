@@ -94,8 +94,8 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex-1 flex flex-col bg-base-100 overflow-hidden">
-  <header class="navbar bg-base-100 border-b border-base-300 px-4 min-h-[4rem]">
+<div class="flex-1 flex flex-col bg-base-100 overflow-hidden min-h-0">
+  <header class="navbar flex-none bg-base-100 border-b border-base-300 px-4 min-h-[4rem]">
     <div class="flex-1">
       <h2 class="text-lg font-bold">Create New Guide</h2>
     </div>
@@ -108,7 +108,7 @@
     </div>
   </header>
 
-  <div class="p-4 sm:px-8 border-b border-base-300 bg-base-200/50">
+  <div class="flex-none p-4 sm:px-8 border-b border-base-300 bg-base-200/50">
     <input
       type="text"
       placeholder="Enter guide title..."
@@ -119,14 +119,14 @@
     />
   </div>
 
-  <div class="flex-1 flex overflow-hidden">
+  <div class="flex-1 min-h-0 flex overflow-hidden">
     <div class="flex-1 flex flex-col border-r border-base-300 overflow-hidden bg-base-100">
-      <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Editor</div>
-      <div class="flex-1 overflow-auto" bind:this={editorElement}></div>
+      <div class="flex-none bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Editor</div>
+      <div class="flex-1 overflow-hidden" bind:this={editorElement}></div>
     </div>
     <div class="flex-1 hidden md:flex flex-col overflow-hidden bg-base-200/30">
-      <div class="bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Preview</div>
-      <div class="flex-1 overflow-auto p-8 prose-container">
+      <div class="flex-none bg-base-200 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50 border-b border-base-300">Preview</div>
+      <div class="flex-1 min-h-0 overflow-auto p-8 prose-container">
         <article class="markdown-body">
           {@html previewHtml}
         </article>
